@@ -22,7 +22,15 @@ export function useSauer(): UseSauerResult {
         const list = value
           ? Object.entries(value).map(([id, sau]) => ({ id, ...sau }))
           : []
-        list.sort((a, b) => a.navn.localeCompare(b.navn, 'nb'))
+        list.sort((a, b) => {
+          if (a.foedselsaar != null && b.foedselsaar != null) {
+            return a.foedselsaar - b.foedselsaar
+          }
+          if (a.foedselsaar == null && b.foedselsaar == null) {
+            return a.navn.localeCompare(b.navn, 'nb')
+          }
+          return a.foedselsaar == null ? 1 : -1
+        })
         setSauer(list)
         setIsLoading(false)
       },

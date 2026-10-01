@@ -1,16 +1,19 @@
-export type SauKjonn = 'soye' | 'vaer' | 'lam'
+export type SauKjoenn = 'HANN' | 'HUNN'
 export type SauStatus = 'aktiv' | 'solgt' | 'slaktet' | 'dod'
 
 export interface Sau {
   navn: string
   oereNr?: string
   rase?: string
-  kjonn?: SauKjonn
-  fodselsdato?: string
+  kjoenn?: SauKjoenn
+  foedselsaar?: number
+  /** Måned og dag, format "MM-DD" (uten år – se foedselsaar) */
+  foedselsdato?: string
   farge?: string
   vekt?: number
   status?: SauStatus
-  notater?: string
+  kommentar?: string
+  barnAv?: string
 }
 
 export interface SauMedId extends Sau {
