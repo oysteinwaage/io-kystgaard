@@ -115,7 +115,17 @@
 
 .itemBodyHeader {
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
+}
+
+.doedInfo {
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--radius-sm);
+  background: color-mix(in oklch, var(--destructive), transparent 90%);
+  color: var(--destructive);
+  font-size: 0.8125rem;
+  font-weight: 500;
 }
 
 .form {

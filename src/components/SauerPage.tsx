@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { set } from 'firebase/database'
-import { ActionIcon, Select, Textarea, TextInput } from '@mantine/core'
+import { ActionIcon, Button, Group, Modal, Select, Textarea, TextInput } from '@mantine/core'
 import { DateInput } from '@mantine/dates'
 import { useSauer } from '@/hooks/useSauer'
 import { appRef } from '@/lib/firebase'
-import type { SauKjoenn, SauMedId } from '@/types/sau'
+import type { SauDoedsAarsak, SauKjoenn, SauMedId } from '@/types/sau'
 import styles from './SauerPage.module.scss'
 
 const statusLabel: Record<string, string> = {
@@ -13,6 +13,18 @@ const statusLabel: Record<string, string> = {
   slaktet: 'Slaktet',
   dod: 'Død',
 }
+
+const doedsAarsakLabel: Record<SauDoedsAarsak, string> = {
+  sykdom: 'Sykdom',
+  slakt: 'Slakt',
+  forsvunnet: 'Forsvunnet',
+}
+
+const doedsAarsakOptions = [
+  { value: 'sykdom', label: doedsAarsakLabel.sykdom },
+  { value: 'slakt', label: doedsAarsakLabel.slakt },
+  { value: 'forsvunnet', label: doedsAarsakLabel.forsvunnet },
+]
 
 const kjoennLabel: Record<SauKjoenn, string> = {
   HANN: 'Hann',
@@ -64,13 +76,36 @@ function SauRad({ sau, alleSauer }: { sau: SauMedId; alleSauer: SauMedId[] }) {
   const [barnAv, setBarnAv] = useState<string | null>(sau.barnAv ?? null)
   const [foedselsdato, setFoedselsdato] = useState<string | null>(sau.foedselsdato ?? null)
   const [laastOpp, setLaastOpp] = useState(false)
+  const [doedModalOpen, setDoedModalOpen] = useState(false)
+  const [modalAarsak, setModalAarsak] = useState<string | null>(sau.doedsAarsak ?? null)
+  const [modalKommentar, setModalKommentar] = useState(sau.doedKommentar ?? '')
 
-  const navnLaast = !laastOpp && !!sau.navn
-  const oereNrLaast = !laastOpp && !!sau.oereNr
-  const foedselsaarLaast = !laastOpp && !!sau.foedselsaar
-  const foedselsdatoLaast = !laastOpp && !!sau.foedselsdato
-  const kjoennLaast = !laastOpp && !!sau.kjoenn
-  const morLaast = !laastOpp && !!sau.barnAv
+  const erDod = !!sau.doedsAarsak
+
+  const navnLaast = erDod || (!laastOpp && !!sau.navn)
+  const oereNrLaast = erDod || (!laastOpp && !!sau.oereNr)
+  const foedselsaarLaast = erDod || (!laastOpp && !!sau.foedselsaar)
+  const foedselsdatoLaast = erDod || (!laastOpp && !!sau.foedselsdato)
+  const kjoennLaast = erDod || (!laastOpp && !!sau.kjoenn)
+  const morLaast = erDod || (!laastOpp && !!sau.barnAv)
+
+  function aapneDoedModal() {
+    setModalAarsak(sau.doedsAarsak ?? null)
+    setModalKommentar(sau.doedKommentar ?? '')
+    setDoedModalOpen(true)
+  }
+
+  function lagreDoedsAarsak() {
+    lagreFelt(sau.id, 'doedsAarsak', modalAarsak)
+    lagreFelt(sau.id, 'doedKommentar', modalKommentar.trim() ? modalKommentar.trim() : null)
+    setDoedModalOpen(false)
+  }
+
+  function angreDoed() {
+    lagreFelt(sau.id, 'doedsAarsak', null)
+    lagreFelt(sau.id, 'doedKommentar', null)
+    setDoedModalOpen(false)
+  }
 
   const morKandidater = alleSauer.filter(
     (kandidat) => kandidat.id !== sau.id && kandidat.kjoenn === 'HUNN' && kandidat.oereNr,
@@ -110,9 +145,15 @@ function SauRad({ sau, alleSauer }: { sau: SauMedId; alleSauer: SauMedId[] }) {
           {sau.oereNr && <span className={styles.oereNr}> ({sau.oereNr})</span>}
         </span>
 
+        {erDod && (
+          <span className={`${styles.status} ${styles['status-dod']}`}>
+            ☠ Død
+          </span>
+        )}
+
         {sau.foedselsaar && <span className={styles.foedselsaar}>{sau.foedselsaar}</span>}
 
-        {sau.status && (
+        {!erDod && sau.status && (
           <span className={`${styles.status} ${statusClass ?? ''}`}>
             {statusLabel[sau.status] ?? sau.status}
           </span>
@@ -127,13 +168,66 @@ function SauRad({ sau, alleSauer }: { sau: SauMedId; alleSauer: SauMedId[] }) {
         <div className={styles.itemBody}>
           <div className={styles.itemBodyHeader}>
             <ActionIcon
+              variant={erDod ? 'filled' : 'subtle'}
+              color={erDod ? 'red' : undefined}
+              aria-label={erDod ? 'Dødsårsak' : 'Marker som død'}
+              onClick={aapneDoedModal}
+            >
+              💀
+            </ActionIcon>
+
+            <ActionIcon
               variant="subtle"
               aria-label={laastOpp ? 'Lås redigering' : 'Lås opp redigering'}
+              disabled={erDod}
               onClick={() => setLaastOpp((verdi) => !verdi)}
             >
               {laastOpp ? '🔓' : '🔒'}
             </ActionIcon>
           </div>
+
+          {erDod && (
+            <p className={styles.doedInfo}>
+              ☠ Død — {doedsAarsakLabel[sau.doedsAarsak as SauDoedsAarsak]}
+              {sau.doedKommentar && `: ${sau.doedKommentar}`}
+            </p>
+          )}
+
+          <Modal
+            opened={doedModalOpen}
+            onClose={() => setDoedModalOpen(false)}
+            title={erDod ? 'Dødsårsak' : 'Marker sau som død'}
+          >
+            <Select
+              label="Dødsårsak"
+              placeholder="Velg årsak"
+              required
+              data={doedsAarsakOptions}
+              value={modalAarsak}
+              onChange={setModalAarsak}
+            />
+            <Textarea
+              mt="sm"
+              label="Kommentar"
+              placeholder="Valgfri kommentar"
+              autosize
+              minRows={2}
+              value={modalKommentar}
+              onChange={(event) => setModalKommentar(event.currentTarget.value)}
+            />
+            <Group justify="space-between" mt="md">
+              {erDod ? (
+                <Button variant="outline" color="red" onClick={angreDoed}>
+                  Angre
+                </Button>
+              ) : (
+                <span />
+              )}
+              <Button disabled={!modalAarsak} onClick={lagreDoedsAarsak}>
+                Lagre
+              </Button>
+            </Group>
+          </Modal>
 
           <div className={styles.form}>
             <TextInput
@@ -248,6 +342,7 @@ function SauRad({ sau, alleSauer }: { sau: SauMedId; alleSauer: SauMedId[] }) {
             label="Kommentar"
             autosize
             minRows={2}
+            disabled={erDod}
             value={kommentar}
             onChange={(event) => setKommentar(event.currentTarget.value)}
             onBlur={() => {

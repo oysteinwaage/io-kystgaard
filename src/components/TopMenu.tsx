@@ -19,8 +19,8 @@ function TopMenu({ activeView, onNavigate }: TopMenuProps) {
   return (
     <header className={styles.bar}>
       <div className={styles.brand}>
-        <img src="/logo.png" alt="Io Kystgård" className={styles.logo} />
-        <span className={styles.name}>Io Kystgård</span>
+        <img src="/logo.png" alt="Lynghaugen Gard" className={styles.logo} />
+        <span className={styles.name}>Lynghaugen Gard</span>
       </div>
 
       <nav className={styles.nav}>

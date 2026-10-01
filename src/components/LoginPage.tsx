@@ -66,8 +66,8 @@ function LoginPage() {
   return (
     <main className={styles.page}>
       <div className={styles.card}>
-        <img src="/logo.png" alt="Io Kystgård" className={styles.logo} />
-        <h1 className={styles.title}>Io Kystgård</h1>
+        <img src="/logo.png" alt="Lynghaugen Gard" className={styles.logo} />
+        <h1 className={styles.title}>Lynghaugen Gard</h1>
         <p className={styles.subtitle}>Logg inn for å fortsette</p>
 
         {error && <p className={styles.error}>{error}</p>}

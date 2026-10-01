@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
 import { onAuthStateChanged, type User } from 'firebase/auth'
 import { runTransaction } from 'firebase/database'
+import HjemPage from '@/components/HjemPage'
 import LoginPage from '@/components/LoginPage'
 import SauerPage from '@/components/SauerPage'
 import TopMenu, { type View } from '@/components/TopMenu'
 import { appRef, auth } from '@/lib/firebase'
-import styles from './App.module.scss'
 
 function App() {
   const [user, setUser] = useState<User | null>(null)
@@ -42,14 +42,7 @@ function App() {
   return (
     <div>
       <TopMenu activeView={view} onNavigate={setView} />
-      {view === 'sauer' ? (
-        <SauerPage />
-      ) : (
-        <main className={styles.page}>
-          <h1 className={styles.heading}>Hello World</h1>
-          <p className={styles.subtitle}>Io Kystgaard</p>
-        </main>
-      )}
+      {view === 'sauer' ? <SauerPage /> : <HjemPage />}
     </div>
   )
 }
