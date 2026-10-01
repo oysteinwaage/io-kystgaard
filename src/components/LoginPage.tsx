@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { signInWithPopup } from 'firebase/auth'
-import { Button } from '@/components/ui/button'
+import { Button } from '@mantine/core'
 import { auth, googleProvider } from '@/lib/firebase'
 import styles from './LoginPage.module.scss'
 
@@ -73,14 +73,13 @@ function LoginPage() {
         {error && <p className={styles.error}>{error}</p>}
 
         <Button
-          type="button"
           variant="outline"
           className={styles.submit}
-          disabled={isSubmitting}
+          loading={isSubmitting}
+          leftSection={<GoogleIcon />}
           onClick={handleGoogleLogin}
         >
-          <GoogleIcon />
-          {isSubmitting ? 'Logger inn…' : 'Logg inn med Google'}
+          Logg inn med Google
         </Button>
       </div>
     </main>
