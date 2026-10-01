@@ -1,5 +1,6 @@
 import { signOut } from 'firebase/auth'
-import { Button } from '@mantine/core'
+import { Burger, Button, Drawer } from '@mantine/core'
+import { useDisclosure } from '@mantine/hooks'
 import { auth } from '@/lib/firebase'
 import styles from './TopMenu.module.scss'
 
@@ -16,6 +17,18 @@ const navItems: { view: View; label: string }[] = [
 ]
 
 function TopMenu({ activeView, onNavigate }: TopMenuProps) {
+  const [menuOpened, { toggle: toggleMenu, close: closeMenu }] = useDisclosure(false)
+
+  const handleNavigate = (view: View) => {
+    onNavigate(view)
+    closeMenu()
+  }
+
+  const handleLogout = () => {
+    closeMenu()
+    signOut(auth)
+  }
+
   return (
     <header className={styles.bar}>
       <div className={styles.brand}>
@@ -31,7 +44,7 @@ function TopMenu({ activeView, onNavigate }: TopMenuProps) {
             className={`${styles.navItem} ${
               activeView === item.view ? styles.navItemActive : ''
             }`}
-            onClick={() => onNavigate(item.view)}
+            onClick={() => handleNavigate(item.view)}
           >
             {item.label}
           </button>
@@ -41,10 +54,48 @@ function TopMenu({ activeView, onNavigate }: TopMenuProps) {
       <Button
         variant="outline"
         className={styles.logout}
-        onClick={() => signOut(auth)}
+        onClick={handleLogout}
       >
         Logg ut
       </Button>
+
+      <Burger
+        opened={menuOpened}
+        onClick={toggleMenu}
+        className={styles.burger}
+        aria-label="Åpne meny"
+      />
+
+      <Drawer
+        opened={menuOpened}
+        onClose={closeMenu}
+        title="Meny"
+        position="right"
+        size="16rem"
+        className={styles.drawer}
+        classNames={{ content: styles.drawerContent, body: styles.drawerBody }}
+      >
+        <nav className={styles.drawerNav}>
+          {navItems.map((item) => (
+            <button
+              key={item.view}
+              type="button"
+              className={`${styles.drawerNavItem} ${
+                activeView === item.view ? styles.navItemActive : ''
+              }`}
+              onClick={() => handleNavigate(item.view)}
+            >
+              {item.label}
+            </button>
+          ))}
+        </nav>
+
+        <div className={styles.drawerFooter}>
+          <Button variant="outline" fullWidth onClick={handleLogout}>
+            Logg ut
+          </Button>
+        </div>
+      </Drawer>
     </header>
   )
 }

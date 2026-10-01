@@ -55,3 +55,62 @@
 .logout {
   margin-left: auto;
 }
+
+.burger {
+  display: none;
+  margin-left: auto;
+}
+
+.drawerContent {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.drawerBody {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.drawerNav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.drawerFooter {
+  margin-top: auto;
+  padding-top: 1rem;
+}
+
+.drawerNavItem {
+  padding: 0.625rem 0.75rem;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--muted-foreground);
+  font-size: 0.9375rem;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.15s, color 0.15s;
+}
+
+.drawerNavItem:hover {
+  background: var(--muted);
+  color: var(--foreground);
+}
+
+@media (max-width: 640px) {
+  .nav,
+  .logout {
+    display: none;
+  }
+
+  .burger {
+    display: block;
+  }
+}
