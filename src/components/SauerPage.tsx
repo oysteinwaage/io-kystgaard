@@ -1,10 +1,10 @@
 import { useState } from 'react'
-import { set } from 'firebase/database'
-import { ActionIcon, Button, Group, Modal, Select, Textarea, TextInput } from '@mantine/core'
+import { push, remove, set } from 'firebase/database'
+import { ActionIcon, Button, Group, Modal, Select, Text, Textarea, TextInput } from '@mantine/core'
 import { DateInput } from '@mantine/dates'
 import { useSauer } from '@/hooks/useSauer'
 import { appRef } from '@/lib/firebase'
-import type { SauDoedsAarsak, SauKjoenn, SauMedId } from '@/types/sau'
+import type { Sau, SauDoedsAarsak, SauKjoenn, SauMedId } from '@/types/sau'
 import styles from './SauerPage.module.scss'
 
 const statusLabel: Record<string, string> = {
@@ -51,6 +51,51 @@ function lagreFelt(sauId: string, felt: string, verdi: string | number | null) {
   })
 }
 
+function visningsNavn(sau: Sau) {
+  return sau.navn || sau.oereNr || 'Uten navn'
+}
+
+/** Avgjør om en sau er over ett år gammel. Ukjent fødselsår regnes som over ett år. */
+function erOverEttAar(sau: Sau) {
+  if (sau.foedselsaar == null) return true
+
+  const iDag = new Date()
+
+  if (sau.foedselsdato) {
+    const [maaned, dag] = sau.foedselsdato.split('-').map(Number)
+    const foedselsDato = new Date(sau.foedselsaar, maaned - 1, dag)
+    const enAarSiden = new Date(iDag.getFullYear() - 1, iDag.getMonth(), iDag.getDate())
+    return foedselsDato <= enAarSiden
+  }
+
+  return sau.foedselsaar !== iDag.getFullYear()
+}
+
+function morAlternativerFra(
+  alleSauer: SauMedId[],
+  ekskluderId?: string,
+  referanseFoedselsaar?: number | null,
+) {
+  const morKandidater = alleSauer.filter(
+    (kandidat) =>
+      kandidat.id !== ekskluderId &&
+      kandidat.kjoenn === 'HUNN' &&
+      kandidat.oereNr &&
+      erOverEttAar(kandidat) &&
+      (referanseFoedselsaar == null ||
+        kandidat.foedselsaar == null ||
+        kandidat.foedselsaar < referanseFoedselsaar),
+  )
+  return Array.from(
+    new Map(
+      morKandidater.map((mor) => [
+        mor.oereNr as string,
+        { value: mor.oereNr as string, label: `${visningsNavn(mor)} (${mor.oereNr})` },
+      ]),
+    ).values(),
+  )
+}
+
 function KjoennIkon({ kjoenn, size = 18 }: { kjoenn: SauKjoenn; size?: number }) {
   const erHann = kjoenn === 'HANN'
   return (
@@ -66,7 +111,7 @@ function KjoennIkon({ kjoenn, size = 18 }: { kjoenn: SauKjoenn; size?: number })
 
 function SauRad({ sau, alleSauer }: { sau: SauMedId; alleSauer: SauMedId[] }) {
   const [isOpen, setIsOpen] = useState(false)
-  const [navn, setNavn] = useState(sau.navn)
+  const [navn, setNavn] = useState(sau.navn ?? '')
   const [foedselsaar, setFoedselsaar] = useState<string | null>(
     sau.foedselsaar ? String(sau.foedselsaar) : null,
   )
@@ -79,6 +124,7 @@ function SauRad({ sau, alleSauer }: { sau: SauMedId; alleSauer: SauMedId[] }) {
   const [doedModalOpen, setDoedModalOpen] = useState(false)
   const [modalAarsak, setModalAarsak] = useState<string | null>(sau.doedsAarsak ?? null)
   const [modalKommentar, setModalKommentar] = useState(sau.doedKommentar ?? '')
+  const [sletteModalOpen, setSletteModalOpen] = useState(false)
 
   const erDod = !!sau.doedsAarsak
 
@@ -107,19 +153,20 @@ function SauRad({ sau, alleSauer }: { sau: SauMedId; alleSauer: SauMedId[] }) {
     setDoedModalOpen(false)
   }
 
-  const morKandidater = alleSauer.filter(
-    (kandidat) => kandidat.id !== sau.id && kandidat.kjoenn === 'HUNN' && kandidat.oereNr,
-  )
+  function slettSau() {
+    remove(appRef(`sauer/${sau.id}`)).catch((err) => {
+      console.error(`Kunne ikke slette sau ${sau.id}:`, err)
+    })
+    setSletteModalOpen(false)
+  }
+
   const barn = sau.oereNr
     ? alleSauer.filter((kandidat) => kandidat.id !== sau.id && kandidat.barnAv === sau.oereNr)
     : []
-  const morAlternativer = Array.from(
-    new Map(
-      morKandidater.map((mor) => [
-        mor.oereNr as string,
-        { value: mor.oereNr as string, label: `${mor.navn} (${mor.oereNr})` },
-      ]),
-    ).values(),
+  const morAlternativer = morAlternativerFra(
+    alleSauer,
+    sau.id,
+    foedselsaar ? Number(foedselsaar) : null,
   )
 
   const statusClass = sau.status ? styles[`status-${sau.status}`] : undefined
@@ -141,8 +188,14 @@ function SauRad({ sau, alleSauer }: { sau: SauMedId; alleSauer: SauMedId[] }) {
         {sau.kjoenn && <KjoennIkon kjoenn={sau.kjoenn} />}
 
         <span className={styles.itemName}>
-          {sau.navn}
-          {sau.oereNr && <span className={styles.oereNr}> ({sau.oereNr})</span>}
+          {sau.navn ? (
+            <>
+              {sau.navn}
+              {sau.oereNr && <span className={styles.oereNr}> ({sau.oereNr})</span>}
+            </>
+          ) : (
+            visningsNavn(sau)
+          )}
         </span>
 
         {erDod && (
@@ -176,15 +229,64 @@ function SauRad({ sau, alleSauer }: { sau: SauMedId; alleSauer: SauMedId[] }) {
               💀
             </ActionIcon>
 
-            <ActionIcon
-              variant="subtle"
-              aria-label={laastOpp ? 'Lås redigering' : 'Lås opp redigering'}
-              disabled={erDod}
-              onClick={() => setLaastOpp((verdi) => !verdi)}
-            >
-              {laastOpp ? '🔓' : '🔒'}
-            </ActionIcon>
+            <Group gap="0.25rem">
+              {laastOpp && (
+                <ActionIcon
+                  variant="subtle"
+                  color="red"
+                  aria-label="Slett sau"
+                  onClick={() => setSletteModalOpen(true)}
+                >
+                  🗑️
+                </ActionIcon>
+              )}
+
+              <ActionIcon
+                variant="subtle"
+                aria-label={laastOpp ? 'Lås redigering' : 'Lås opp redigering'}
+                disabled={erDod}
+                onClick={() => setLaastOpp((verdi) => !verdi)}
+              >
+                {laastOpp ? '🔓' : '🔒'}
+              </ActionIcon>
+            </Group>
           </div>
+
+          <Modal
+            opened={sletteModalOpen}
+            onClose={() => setSletteModalOpen(false)}
+            title="Slett sau"
+          >
+            {barn.length > 0 ? (
+              <>
+                <Text size="sm">
+                  Det er ikke mulig å slette en sau som er registrert i systemet med barn.
+                  Enten kan sauen registreres som død, eller så må du inn på de aktuelle barna
+                  og fjerne denne sauen som mor før den kan slettes.
+                </Text>
+                <Group justify="flex-end" mt="md">
+                  <Button variant="outline" onClick={() => setSletteModalOpen(false)}>
+                    Lukk
+                  </Button>
+                </Group>
+              </>
+            ) : (
+              <>
+                <Text size="sm">
+                  Er du sikker på at du vil slette {visningsNavn(sau)}
+                  {sau.navn && sau.oereNr && ` (${sau.oereNr})`}? Dette kan ikke angres.
+                </Text>
+                <Group justify="flex-end" mt="md">
+                  <Button variant="outline" onClick={() => setSletteModalOpen(false)}>
+                    Avbryt
+                  </Button>
+                  <Button color="red" onClick={slettSau}>
+                    Slett
+                  </Button>
+                </Group>
+              </>
+            )}
+          </Modal>
 
           {erDod && (
             <p className={styles.doedInfo}>
@@ -237,7 +339,7 @@ function SauRad({ sau, alleSauer }: { sau: SauMedId; alleSauer: SauMedId[] }) {
               disabled={navnLaast}
               onChange={(event) => setNavn(event.currentTarget.value)}
               onBlur={() => {
-                if (navn !== sau.navn) lagreFelt(sau.id, 'navn', navn)
+                if (navn !== (sau.navn ?? '')) lagreFelt(sau.id, 'navn', navn.trim() ? navn : null)
               }}
             />
             <TextInput
@@ -358,8 +460,14 @@ function SauRad({ sau, alleSauer }: { sau: SauMedId; alleSauer: SauMedId[] }) {
               <ul className={styles.barnListe}>
                 {barn.map((b) => (
                   <li key={b.id}>
-                    {b.navn}
-                    {b.oereNr && <span className={styles.oereNr}> ({b.oereNr})</span>}
+                    {b.navn ? (
+                      <>
+                        {b.navn}
+                        {b.oereNr && <span className={styles.oereNr}> ({b.oereNr})</span>}
+                      </>
+                    ) : (
+                      visningsNavn(b)
+                    )}
                   </li>
                 ))}
               </ul>
@@ -371,12 +479,174 @@ function SauRad({ sau, alleSauer }: { sau: SauMedId; alleSauer: SauMedId[] }) {
   )
 }
 
+function tomtNyttSkjema() {
+  return {
+    navn: '',
+    oereNr: '',
+    kjoenn: null as string | null,
+    foedselsaar: null as string | null,
+    foedselsdato: null as string | null,
+    barnAv: null as string | null,
+    kommentar: '',
+  }
+}
+
+function LeggTilSauModal({
+  opened,
+  onClose,
+  alleSauer,
+}: {
+  opened: boolean
+  onClose: () => void
+  alleSauer: SauMedId[]
+}) {
+  const [skjema, setSkjema] = useState(tomtNyttSkjema)
+  const [lagrer, setLagrer] = useState(false)
+
+  const morAlternativer = morAlternativerFra(
+    alleSauer,
+    undefined,
+    skjema.foedselsaar ? Number(skjema.foedselsaar) : null,
+  )
+
+  const kanLagre = skjema.oereNr.trim() !== '' && !!skjema.kjoenn
+
+  function lukkOgNullstill() {
+    setSkjema(tomtNyttSkjema())
+    onClose()
+  }
+
+  function lagreNySau() {
+    if (!kanLagre) return
+
+    const nySau: Sau = {
+      oereNr: skjema.oereNr.trim(),
+      kjoenn: skjema.kjoenn as SauKjoenn,
+    }
+    if (skjema.navn.trim()) nySau.navn = skjema.navn.trim()
+    if (skjema.foedselsaar) nySau.foedselsaar = Number(skjema.foedselsaar)
+    if (skjema.foedselsdato) nySau.foedselsdato = skjema.foedselsdato
+    if (skjema.barnAv) nySau.barnAv = skjema.barnAv
+    if (skjema.kommentar.trim()) nySau.kommentar = skjema.kommentar.trim()
+
+    setLagrer(true)
+    set(push(appRef('sauer')), nySau)
+      .then(() => lukkOgNullstill())
+      .catch((err) => {
+        console.error('Kunne ikke opprette ny sau:', err)
+      })
+      .finally(() => setLagrer(false))
+  }
+
+  return (
+    <Modal opened={opened} onClose={lukkOgNullstill} title="Legg til sau">
+      <div className={styles.form}>
+        <TextInput
+          label="Navn"
+          value={skjema.navn}
+          onChange={(event) => {
+            const verdi = event.currentTarget.value
+            setSkjema((s) => ({ ...s, navn: verdi }))
+          }}
+        />
+        <TextInput
+          label="Ørenummer"
+          required
+          value={skjema.oereNr}
+          onChange={(event) => {
+            const verdi = event.currentTarget.value
+            setSkjema((s) => ({ ...s, oereNr: verdi }))
+          }}
+        />
+        <Select
+          label="Fødselsår"
+          placeholder="Velg årstall"
+          data={aarOptions}
+          value={skjema.foedselsaar}
+          onChange={(verdi) => setSkjema((s) => ({ ...s, foedselsaar: verdi }))}
+          searchable
+        />
+        <DateInput
+          label="Fødselsdato"
+          placeholder="Velg dato"
+          valueFormat="D.MMMM"
+          value={skjema.foedselsdato ? `${PLASSHOLDER_AAR}-${skjema.foedselsdato}` : null}
+          clearable
+          onChange={(verdi) =>
+            setSkjema((s) => ({ ...s, foedselsdato: verdi ? verdi.slice(5) : null }))
+          }
+        />
+        <Select
+          label="Kjønn"
+          placeholder="Velg kjønn"
+          required
+          data={kjoennOptions}
+          value={skjema.kjoenn}
+          onChange={(verdi) => setSkjema((s) => ({ ...s, kjoenn: verdi }))}
+          leftSection={
+            skjema.kjoenn ? <KjoennIkon kjoenn={skjema.kjoenn as SauKjoenn} size={16} /> : undefined
+          }
+          renderOption={({ option }) => (
+            <span className={styles.kjoennOption}>
+              <KjoennIkon kjoenn={option.value as SauKjoenn} size={16} />
+              {option.label}
+            </span>
+          )}
+        />
+        <Select
+          label="Mor"
+          placeholder="Velg mor"
+          data={morAlternativer}
+          value={skjema.barnAv}
+          onChange={(verdi) => setSkjema((s) => ({ ...s, barnAv: verdi }))}
+          searchable
+          clearable
+        />
+      </div>
+
+      <Textarea
+        mt="sm"
+        label="Kommentar"
+        placeholder="Valgfri kommentar"
+        autosize
+        minRows={2}
+        value={skjema.kommentar}
+        onChange={(event) => {
+          const verdi = event.currentTarget.value
+          setSkjema((s) => ({ ...s, kommentar: verdi }))
+        }}
+      />
+
+      <Group justify="flex-end" mt="md">
+        <Button variant="outline" onClick={lukkOgNullstill}>
+          Avbryt
+        </Button>
+        <Button disabled={!kanLagre} loading={lagrer} onClick={lagreNySau}>
+          Lagre
+        </Button>
+      </Group>
+    </Modal>
+  )
+}
+
 function SauerPage() {
   const { sauer, isLoading, error } = useSauer()
+  const [leggTilModalOpen, setLeggTilModalOpen] = useState(false)
 
   return (
     <main className={styles.page}>
-      <h1 className={styles.title}>Sauer</h1>
+      <Group justify="space-between" align="center" mb="1.5rem">
+        <h1 className={styles.title} style={{ margin: 0 }}>
+          Sauer
+        </h1>
+        <Button onClick={() => setLeggTilModalOpen(true)}>Legg til sau</Button>
+      </Group>
+
+      <LeggTilSauModal
+        opened={leggTilModalOpen}
+        onClose={() => setLeggTilModalOpen(false)}
+        alleSauer={sauer}
+      />
 
       {isLoading && <p className={styles.subtitle}>Laster sauer…</p>}
       {error && <p className={styles.error}>{error}</p>}

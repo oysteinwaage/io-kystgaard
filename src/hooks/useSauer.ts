@@ -27,7 +27,7 @@ export function useSauer(): UseSauerResult {
             return a.foedselsaar - b.foedselsaar
           }
           if (a.foedselsaar == null && b.foedselsaar == null) {
-            return a.navn.localeCompare(b.navn, 'nb')
+            return (a.navn ?? a.oereNr ?? '').localeCompare(b.navn ?? b.oereNr ?? '', 'nb')
           }
           return a.foedselsaar == null ? 1 : -1
         })

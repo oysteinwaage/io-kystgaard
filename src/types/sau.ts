@@ -3,7 +3,7 @@ export type SauStatus = 'aktiv' | 'solgt' | 'slaktet' | 'dod'
 export type SauDoedsAarsak = 'sykdom' | 'slakt' | 'forsvunnet'
 
 export interface Sau {
-  navn: string
+  navn?: string
   oereNr?: string
   rase?: string
   kjoenn?: SauKjoenn
