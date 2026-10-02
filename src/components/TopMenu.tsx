@@ -4,11 +4,12 @@ import { useDisclosure } from '@mantine/hooks'
 import { auth } from '@/lib/firebase'
 import styles from './TopMenu.module.scss'
 
-export type View = 'hjem' | 'sauer' | 'slakting' | 'vaer'
+export type View = 'hjem' | 'sauer' | 'slakting' | 'vaer' | 'admin'
 
 interface TopMenuProps {
   activeView: View
   onNavigate: (view: View) => void
+  erAdmin?: boolean
 }
 
 const navItems: { view: View; label: string }[] = [
@@ -18,8 +19,9 @@ const navItems: { view: View; label: string }[] = [
   { view: 'vaer', label: 'Værer' },
 ]
 
-function TopMenu({ activeView, onNavigate }: TopMenuProps) {
+function TopMenu({ activeView, onNavigate, erAdmin }: TopMenuProps) {
   const [menuOpened, { toggle: toggleMenu, close: closeMenu }] = useDisclosure(false)
+  const items = erAdmin ? [...navItems, { view: 'admin' as View, label: 'Admin' }] : navItems
 
   const handleNavigate = (view: View) => {
     onNavigate(view)
@@ -39,7 +41,7 @@ function TopMenu({ activeView, onNavigate }: TopMenuProps) {
       </div>
 
       <nav className={styles.nav}>
-        {navItems.map((item) => (
+        {items.map((item) => (
           <button
             key={item.view}
             type="button"
@@ -78,7 +80,7 @@ function TopMenu({ activeView, onNavigate }: TopMenuProps) {
         classNames={{ content: styles.drawerContent, body: styles.drawerBody }}
       >
         <nav className={styles.drawerNav}>
-          {navItems.map((item) => (
+          {items.map((item) => (
             <button
               key={item.view}
               type="button"
