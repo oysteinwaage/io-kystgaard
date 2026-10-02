@@ -4,7 +4,7 @@ import { useDisclosure } from '@mantine/hooks'
 import { auth } from '@/lib/firebase'
 import styles from './TopMenu.module.scss'
 
-export type View = 'hjem' | 'sauer' | 'slakting'
+export type View = 'hjem' | 'sauer' | 'slakting' | 'vaer'
 
 interface TopMenuProps {
   activeView: View
@@ -15,6 +15,7 @@ const navItems: { view: View; label: string }[] = [
   { view: 'hjem', label: 'Hjem' },
   { view: 'sauer', label: 'Sauer' },
   { view: 'slakting', label: 'Slakting' },
+  { view: 'vaer', label: 'Værer' },
 ]
 
 function TopMenu({ activeView, onNavigate }: TopMenuProps) {

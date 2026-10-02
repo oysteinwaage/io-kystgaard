@@ -6,6 +6,7 @@ import LoginPage from '@/components/LoginPage'
 import SauerPage from '@/components/SauerPage'
 import SlaktingPage from '@/components/SlaktingPage'
 import TopMenu, { type View } from '@/components/TopMenu'
+import VaerPage from '@/components/VaerPage'
 import { appRef, auth } from '@/lib/firebase'
 
 function App() {
@@ -45,6 +46,7 @@ function App() {
       <TopMenu activeView={view} onNavigate={setView} />
       {view === 'sauer' && <SauerPage />}
       {view === 'slakting' && <SlaktingPage />}
+      {view === 'vaer' && <VaerPage />}
       {view === 'hjem' && <HjemPage />}
     </div>
   )
