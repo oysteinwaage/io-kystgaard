@@ -16,6 +16,7 @@ export interface Sau {
   kommentar?: string
   barnAv?: string
   doedsAarsak?: SauDoedsAarsak
+  doedsAar?: number
   doedKommentar?: string
 }
 

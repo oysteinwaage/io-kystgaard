@@ -215,3 +215,64 @@
   list-style: none;
   font-size: 0.875rem;
 }
+
+.doedeSeksjon {
+  margin-top: 1.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  overflow: hidden;
+}
+
+.doedeHeader {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.625rem;
+  padding: 0.875rem 1rem;
+  border: none;
+  background: transparent;
+  text-align: left;
+  font: inherit;
+  font-weight: 600;
+  color: var(--muted-foreground);
+  cursor: pointer;
+}
+
+.doedeHeader:hover {
+  background: var(--muted);
+}
+
+.doedeInnhold {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  padding: 0 1rem 1rem;
+  border-top: 1px solid var(--border);
+}
+
+.doedeAarGruppe {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding-top: 1rem;
+}
+
+.doedeAarTittel {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.doedeAarsakGruppe {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.doedeAarsakTittel {
+  color: var(--muted-foreground);
+  font-size: 0.8125rem;
+  font-weight: 500;
+}

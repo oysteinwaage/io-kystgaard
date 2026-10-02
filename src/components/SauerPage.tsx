@@ -1,6 +1,16 @@
 import { useState } from 'react'
 import { push, remove, set } from 'firebase/database'
-import { ActionIcon, Button, Group, Modal, Select, Text, Textarea, TextInput } from '@mantine/core'
+import {
+  ActionIcon,
+  Button,
+  Collapse,
+  Group,
+  Modal,
+  Select,
+  Text,
+  Textarea,
+  TextInput,
+} from '@mantine/core'
 import { DateInput } from '@mantine/dates'
 import { useSauer } from '@/hooks/useSauer'
 import { appRef } from '@/lib/firebase'
@@ -123,6 +133,9 @@ function SauRad({ sau, alleSauer }: { sau: SauMedId; alleSauer: SauMedId[] }) {
   const [laastOpp, setLaastOpp] = useState(false)
   const [doedModalOpen, setDoedModalOpen] = useState(false)
   const [modalAarsak, setModalAarsak] = useState<string | null>(sau.doedsAarsak ?? null)
+  const [modalAar, setModalAar] = useState<string | null>(
+    sau.doedsAar ? String(sau.doedsAar) : null,
+  )
   const [modalKommentar, setModalKommentar] = useState(sau.doedKommentar ?? '')
   const [sletteModalOpen, setSletteModalOpen] = useState(false)
 
@@ -137,18 +150,21 @@ function SauRad({ sau, alleSauer }: { sau: SauMedId; alleSauer: SauMedId[] }) {
 
   function aapneDoedModal() {
     setModalAarsak(sau.doedsAarsak ?? null)
+    setModalAar(sau.doedsAar ? String(sau.doedsAar) : String(new Date().getFullYear()))
     setModalKommentar(sau.doedKommentar ?? '')
     setDoedModalOpen(true)
   }
 
   function lagreDoedsAarsak() {
     lagreFelt(sau.id, 'doedsAarsak', modalAarsak)
+    lagreFelt(sau.id, 'doedsAar', modalAar ? Number(modalAar) : null)
     lagreFelt(sau.id, 'doedKommentar', modalKommentar.trim() ? modalKommentar.trim() : null)
     setDoedModalOpen(false)
   }
 
   function angreDoed() {
     lagreFelt(sau.id, 'doedsAarsak', null)
+    lagreFelt(sau.id, 'doedsAar', null)
     lagreFelt(sau.id, 'doedKommentar', null)
     setDoedModalOpen(false)
   }
@@ -200,7 +216,7 @@ function SauRad({ sau, alleSauer }: { sau: SauMedId; alleSauer: SauMedId[] }) {
 
         {erDod && (
           <span className={`${styles.status} ${styles['status-dod']}`}>
-            ☠ Død
+            ☠ Død - {doedsAarsakLabel[sau.doedsAarsak as SauDoedsAarsak]}
           </span>
         )}
 
@@ -290,7 +306,8 @@ function SauRad({ sau, alleSauer }: { sau: SauMedId; alleSauer: SauMedId[] }) {
 
           {erDod && (
             <p className={styles.doedInfo}>
-              ☠ Død — {doedsAarsakLabel[sau.doedsAarsak as SauDoedsAarsak]}
+              ☠ Død{sau.doedsAar ? ` ${sau.doedsAar}` : ''} —{' '}
+              {doedsAarsakLabel[sau.doedsAarsak as SauDoedsAarsak]}
               {sau.doedKommentar && `: ${sau.doedKommentar}`}
             </p>
           )}
@@ -307,6 +324,16 @@ function SauRad({ sau, alleSauer }: { sau: SauMedId; alleSauer: SauMedId[] }) {
               data={doedsAarsakOptions}
               value={modalAarsak}
               onChange={setModalAarsak}
+            />
+            <Select
+              mt="sm"
+              label="År"
+              placeholder="Velg årstall"
+              data={aarOptions}
+              value={modalAar}
+              onChange={setModalAar}
+              searchable
+              clearable
             />
             <Textarea
               mt="sm"
@@ -629,9 +656,94 @@ function LeggTilSauModal({
   )
 }
 
+const UKJENT_AAR = 'Ukjent år'
+const UKJENT_AARSAK = 'ukjent'
+
+function grupperDoedeSauer(doedeSauer: SauMedId[]) {
+  const perAar = new Map<string, Map<string, SauMedId[]>>()
+
+  for (const sau of doedeSauer) {
+    const aarNoekkel = sau.doedsAar ? String(sau.doedsAar) : UKJENT_AAR
+    const aarsakNoekkel = sau.doedsAarsak ?? UKJENT_AARSAK
+    if (!perAar.has(aarNoekkel)) perAar.set(aarNoekkel, new Map())
+    const perAarsak = perAar.get(aarNoekkel)!
+    if (!perAarsak.has(aarsakNoekkel)) perAarsak.set(aarsakNoekkel, [])
+    perAarsak.get(aarsakNoekkel)!.push(sau)
+  }
+
+  const sorterteAar = Array.from(perAar.keys()).sort((a, b) => {
+    if (a === UKJENT_AAR) return 1
+    if (b === UKJENT_AAR) return -1
+    return Number(b) - Number(a)
+  })
+
+  return sorterteAar.map((aar) => ({
+    aar,
+    aarsaker: Array.from(perAar.get(aar)!.entries()).map(([aarsak, liste]) => ({
+      aarsak,
+      liste,
+    })),
+  }))
+}
+
+function DoedeSauerSeksjon({
+  doedeSauer,
+  alleSauer,
+}: {
+  doedeSauer: SauMedId[]
+  alleSauer: SauMedId[]
+}) {
+  const [isOpen, setIsOpen] = useState(false)
+  const grupper = grupperDoedeSauer(doedeSauer)
+
+  return (
+    <div className={styles.doedeSeksjon}>
+      <button
+        type="button"
+        className={styles.doedeHeader}
+        onClick={() => setIsOpen((open) => !open)}
+        aria-expanded={isOpen}
+      >
+        <span>☠ Døde sauer ({doedeSauer.length})</span>
+        <span className={`${styles.chevron} ${isOpen ? styles.chevronOpen : ''}`} aria-hidden="true">
+          ▾
+        </span>
+      </button>
+
+      <Collapse expanded={isOpen}>
+        <div className={styles.doedeInnhold}>
+          {grupper.map(({ aar, aarsaker }) => (
+            <div key={aar} className={styles.doedeAarGruppe}>
+              <h3 className={styles.doedeAarTittel}>{aar}</h3>
+              {aarsaker.map(({ aarsak, liste }) => (
+                <div key={aarsak} className={styles.doedeAarsakGruppe}>
+                  <span className={styles.doedeAarsakTittel}>
+                    {aarsak === UKJENT_AARSAK
+                      ? 'Ukjent årsak'
+                      : doedsAarsakLabel[aarsak as SauDoedsAarsak]}{' '}
+                    ({liste.length})
+                  </span>
+                  <ul className={styles.list}>
+                    {liste.map((sau) => (
+                      <SauRad key={sau.id} sau={sau} alleSauer={alleSauer} />
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      </Collapse>
+    </div>
+  )
+}
+
 function SauerPage() {
   const { sauer, isLoading, error } = useSauer()
   const [leggTilModalOpen, setLeggTilModalOpen] = useState(false)
+
+  const levendeSauer = sauer.filter((sau) => !sau.doedsAarsak)
+  const doedeSauer = sauer.filter((sau) => sau.doedsAarsak)
 
   return (
     <main className={styles.page}>
@@ -655,12 +767,20 @@ function SauerPage() {
         <p className={styles.subtitle}>Ingen sauer er registrert ennå.</p>
       )}
 
-      {!isLoading && sauer.length > 0 && (
+      {!isLoading && levendeSauer.length > 0 && (
         <ul className={styles.list}>
-          {sauer.map((sau) => (
+          {levendeSauer.map((sau) => (
             <SauRad key={sau.id} sau={sau} alleSauer={sauer} />
           ))}
         </ul>
+      )}
+
+      {!isLoading && !error && sauer.length > 0 && levendeSauer.length === 0 && (
+        <p className={styles.subtitle}>Ingen levende sauer er registrert.</p>
+      )}
+
+      {!isLoading && doedeSauer.length > 0 && (
+        <DoedeSauerSeksjon doedeSauer={doedeSauer} alleSauer={sauer} />
       )}
     </main>
   )
