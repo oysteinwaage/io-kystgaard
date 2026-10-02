@@ -89,8 +89,8 @@ function morAlternativerFra(
   return Array.from(
     new Map(
       morKandidater.map((mor) => [
-        mor.oereNr as string,
-        { value: mor.oereNr as string, label: `${visningsNavn(mor)} (${mor.oereNr})` },
+        mor.id,
+        { value: mor.id, label: `${visningsNavn(mor)} (${mor.oereNr})` },
       ]),
     ).values(),
   )
@@ -160,9 +160,9 @@ function SauRad({ sau, alleSauer }: { sau: SauMedId; alleSauer: SauMedId[] }) {
     setSletteModalOpen(false)
   }
 
-  const barn = sau.oereNr
-    ? alleSauer.filter((kandidat) => kandidat.id !== sau.id && kandidat.barnAv === sau.oereNr)
-    : []
+  const barn = alleSauer.filter(
+    (kandidat) => kandidat.id !== sau.id && kandidat.barnAv === sau.id,
+  )
   const morAlternativer = morAlternativerFra(
     alleSauer,
     sau.id,

@@ -4,6 +4,7 @@ import { runTransaction } from 'firebase/database'
 import HjemPage from '@/components/HjemPage'
 import LoginPage from '@/components/LoginPage'
 import SauerPage from '@/components/SauerPage'
+import SlaktingPage from '@/components/SlaktingPage'
 import TopMenu, { type View } from '@/components/TopMenu'
 import { appRef, auth } from '@/lib/firebase'
 
@@ -42,7 +43,9 @@ function App() {
   return (
     <div>
       <TopMenu activeView={view} onNavigate={setView} />
-      {view === 'sauer' ? <SauerPage /> : <HjemPage />}
+      {view === 'sauer' && <SauerPage />}
+      {view === 'slakting' && <SlaktingPage />}
+      {view === 'hjem' && <HjemPage />}
     </div>
   )
 }
