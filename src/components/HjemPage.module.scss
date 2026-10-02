@@ -59,6 +59,10 @@
   color: var(--destructive);
 }
 
+.statValueSolgt {
+  color: oklch(0.35 0.12 145);
+}
+
 .section {
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);

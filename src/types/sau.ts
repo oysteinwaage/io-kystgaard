@@ -1,6 +1,6 @@
 export type SauKjoenn = 'HANN' | 'HUNN'
 export type SauStatus = 'aktiv' | 'solgt' | 'slaktet' | 'dod'
-export type SauDoedsAarsak = 'sykdom' | 'slakt' | 'forsvunnet'
+export type SauDoedsAarsak = 'sykdom' | 'slakt' | 'forsvunnet' | 'solgt'
 
 export interface Sau {
   navn?: string
@@ -18,6 +18,8 @@ export interface Sau {
   doedsAarsak?: SauDoedsAarsak
   doedsAar?: number
   doedKommentar?: string
+  kjoeptAv?: string
+  solgtPris?: number
 }
 
 export interface SauMedId extends Sau {

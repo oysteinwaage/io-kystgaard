@@ -6,6 +6,7 @@ import {
   Collapse,
   Group,
   Modal,
+  NumberInput,
   Select,
   Text,
   Textarea,
@@ -28,12 +29,14 @@ const doedsAarsakLabel: Record<SauDoedsAarsak, string> = {
   sykdom: 'Sykdom',
   slakt: 'Slakt',
   forsvunnet: 'Forsvunnet',
+  solgt: 'Solgt',
 }
 
 const doedsAarsakOptions = [
   { value: 'sykdom', label: doedsAarsakLabel.sykdom },
   { value: 'slakt', label: doedsAarsakLabel.slakt },
   { value: 'forsvunnet', label: doedsAarsakLabel.forsvunnet },
+  { value: 'solgt', label: doedsAarsakLabel.solgt },
 ]
 
 const kjoennLabel: Record<SauKjoenn, string> = {
@@ -137,9 +140,12 @@ function SauRad({ sau, alleSauer }: { sau: SauMedId; alleSauer: SauMedId[] }) {
     sau.doedsAar ? String(sau.doedsAar) : null,
   )
   const [modalKommentar, setModalKommentar] = useState(sau.doedKommentar ?? '')
+  const [modalKjoeptAv, setModalKjoeptAv] = useState(sau.kjoeptAv ?? '')
+  const [modalSolgtPris, setModalSolgtPris] = useState<number | string>(sau.solgtPris ?? '')
   const [sletteModalOpen, setSletteModalOpen] = useState(false)
 
   const erDod = !!sau.doedsAarsak
+  const erSolgt = sau.doedsAarsak === 'solgt'
 
   const navnLaast = erDod || (!laastOpp && !!sau.navn)
   const oereNrLaast = erDod || (!laastOpp && !!sau.oereNr)
@@ -152,6 +158,8 @@ function SauRad({ sau, alleSauer }: { sau: SauMedId; alleSauer: SauMedId[] }) {
     setModalAarsak(sau.doedsAarsak ?? null)
     setModalAar(sau.doedsAar ? String(sau.doedsAar) : String(new Date().getFullYear()))
     setModalKommentar(sau.doedKommentar ?? '')
+    setModalKjoeptAv(sau.kjoeptAv ?? '')
+    setModalSolgtPris(sau.solgtPris ?? '')
     setDoedModalOpen(true)
   }
 
@@ -159,6 +167,16 @@ function SauRad({ sau, alleSauer }: { sau: SauMedId; alleSauer: SauMedId[] }) {
     lagreFelt(sau.id, 'doedsAarsak', modalAarsak)
     lagreFelt(sau.id, 'doedsAar', modalAar ? Number(modalAar) : null)
     lagreFelt(sau.id, 'doedKommentar', modalKommentar.trim() ? modalKommentar.trim() : null)
+    lagreFelt(
+      sau.id,
+      'kjoeptAv',
+      modalAarsak === 'solgt' && modalKjoeptAv.trim() ? modalKjoeptAv.trim() : null,
+    )
+    lagreFelt(
+      sau.id,
+      'solgtPris',
+      modalAarsak === 'solgt' && modalSolgtPris !== '' ? Number(modalSolgtPris) : null,
+    )
     setDoedModalOpen(false)
   }
 
@@ -166,6 +184,8 @@ function SauRad({ sau, alleSauer }: { sau: SauMedId; alleSauer: SauMedId[] }) {
     lagreFelt(sau.id, 'doedsAarsak', null)
     lagreFelt(sau.id, 'doedsAar', null)
     lagreFelt(sau.id, 'doedKommentar', null)
+    lagreFelt(sau.id, 'kjoeptAv', null)
+    lagreFelt(sau.id, 'solgtPris', null)
     setDoedModalOpen(false)
   }
 
@@ -215,8 +235,10 @@ function SauRad({ sau, alleSauer }: { sau: SauMedId; alleSauer: SauMedId[] }) {
         </span>
 
         {erDod && (
-          <span className={`${styles.status} ${styles['status-dod']}`}>
-            ☠ Død - {doedsAarsakLabel[sau.doedsAarsak as SauDoedsAarsak]}
+          <span
+            className={`${styles.status} ${erSolgt ? styles['status-dod-solgt'] : styles['status-dod']}`}
+          >
+            {erSolgt ? '💰 Solgt' : `☠ Død - ${doedsAarsakLabel[sau.doedsAarsak as SauDoedsAarsak]}`}
           </span>
         )}
 
@@ -236,14 +258,14 @@ function SauRad({ sau, alleSauer }: { sau: SauMedId; alleSauer: SauMedId[] }) {
       {isOpen && (
         <div className={styles.itemBody}>
           <div className={styles.itemBodyHeader}>
-            <ActionIcon
+            <Button
               variant={erDod ? 'filled' : 'subtle'}
               color={erDod ? 'red' : undefined}
-              aria-label={erDod ? 'Dødsårsak' : 'Marker som død'}
+              leftSection={<span aria-hidden="true">💀</span>}
               onClick={aapneDoedModal}
             >
-              💀
-            </ActionIcon>
+              Død
+            </Button>
 
             <Group gap="0.25rem">
               {laastOpp && (
@@ -305,10 +327,22 @@ function SauRad({ sau, alleSauer }: { sau: SauMedId; alleSauer: SauMedId[] }) {
           </Modal>
 
           {erDod && (
-            <p className={styles.doedInfo}>
-              ☠ Død{sau.doedsAar ? ` ${sau.doedsAar}` : ''} —{' '}
-              {doedsAarsakLabel[sau.doedsAarsak as SauDoedsAarsak]}
-              {sau.doedKommentar && `: ${sau.doedKommentar}`}
+            <p className={`${styles.doedInfo} ${erSolgt ? styles['doedInfo-solgt'] : ''}`}>
+              {erSolgt ? (
+                <>
+                  💰 Solgt{sau.doedsAar ? ` ${sau.doedsAar}` : ''}
+                  {sau.kjoeptAv && ` til ${sau.kjoeptAv}`}
+                  {typeof sau.solgtPris === 'number' &&
+                    ` for ${sau.solgtPris.toLocaleString('nb-NO')} kr`}
+                  {sau.doedKommentar && `: ${sau.doedKommentar}`}
+                </>
+              ) : (
+                <>
+                  ☠ Død{sau.doedsAar ? ` ${sau.doedsAar}` : ''} —{' '}
+                  {doedsAarsakLabel[sau.doedsAarsak as SauDoedsAarsak]}
+                  {sau.doedKommentar && `: ${sau.doedKommentar}`}
+                </>
+              )}
             </p>
           )}
 
@@ -335,6 +369,29 @@ function SauRad({ sau, alleSauer }: { sau: SauMedId; alleSauer: SauMedId[] }) {
               searchable
               clearable
             />
+            {modalAarsak === 'solgt' && (
+              <>
+                <TextInput
+                  mt="sm"
+                  label="Kjøpt av"
+                  placeholder="Navn på kjøper"
+                  value={modalKjoeptAv}
+                  onChange={(event) => setModalKjoeptAv(event.currentTarget.value)}
+                />
+                <NumberInput
+                  mt="sm"
+                  label="Pris"
+                  placeholder="Valgfri pris"
+                  suffix=" kr"
+                  thousandSeparator=" "
+                  allowNegative={false}
+                  allowDecimal={false}
+                  hideControls
+                  value={modalSolgtPris}
+                  onChange={setModalSolgtPris}
+                />
+              </>
+            )}
             <Textarea
               mt="sm"
               label="Kommentar"

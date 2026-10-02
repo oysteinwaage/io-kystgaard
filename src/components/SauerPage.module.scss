@@ -128,6 +128,11 @@
   font-weight: 500;
 }
 
+.doedInfo-solgt {
+  background: color-mix(in oklch, oklch(0.6 0.15 145), transparent 90%);
+  color: oklch(0.35 0.12 145);
+}
+
 .form {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
@@ -168,6 +173,11 @@
 .status-dod {
   background: color-mix(in oklch, var(--destructive), transparent 85%);
   color: var(--destructive);
+}
+
+.status-dod-solgt {
+  background: color-mix(in oklch, oklch(0.6 0.15 145), transparent 80%);
+  color: oklch(0.35 0.12 145);
 }
 
 .details {
