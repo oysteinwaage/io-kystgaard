@@ -80,7 +80,7 @@ const aarOptions = Array.from({ length: sisteAar - forsteAar + 1 }, (_, i) =>
 /** Plassholderår for Fødselsdato-feltet (kun måned/dag lagres, se foedselsdato). */
 const PLASSHOLDER_AAR = '2000'
 
-function lagreFelt(sauId: string, felt: string, verdi: string | number | null) {
+function lagreFelt(sauId: string, felt: string, verdi: string | number | boolean | null) {
   set(appRef(`sauer/${sauId}/${felt}`), verdi).catch((err) => {
     console.error(`Kunne ikke lagre ${felt} for sau ${sauId}:`, err)
   })
