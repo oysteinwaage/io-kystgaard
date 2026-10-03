@@ -13,9 +13,12 @@ import {
 } from '@mantine/core'
 import { useVaer } from '@/hooks/useVaer'
 import { useParring } from '@/hooks/useParring'
+import { useSauer } from '@/hooks/useSauer'
 import { appRef } from '@/lib/firebase'
+import { oppdaterVillsauForEtterkommere } from '@/lib/villsauKalkulering'
 import type { Vaer, VaerMedId } from '@/types/vaer'
 import type { Parring, ParringMedId } from '@/types/parring'
+import type { SauMedId } from '@/types/sau'
 import styles from './VaerPage.module.scss'
 
 const forsteAarParring = 2016
@@ -76,7 +79,15 @@ function endreParringVaer(parring: ParringMedId, nyVaerId: string, vaerer: VaerM
   })
 }
 
-function VaerRad({ vaer }: { vaer: VaerMedId }) {
+function VaerRad({
+  vaer,
+  alleVaerer,
+  alleSauer,
+}: {
+  vaer: VaerMedId
+  alleVaerer: VaerMedId[]
+  alleSauer: SauMedId[]
+}) {
   const [isOpen, setIsOpen] = useState(false)
   const [navn, setNavn] = useState(vaer.navn)
   const [oereNr, setOereNr] = useState(vaer.oereNr ?? '')
@@ -220,8 +231,16 @@ function VaerRad({ vaer }: { vaer: VaerMedId }) {
               onChange={setProsentVillsau}
               onBlur={() => {
                 const verdi = prosentVillsau === '' ? null : Number(prosentVillsau)
-                if (verdi !== (vaer.prosentVillsau ?? null))
+                if (verdi !== (vaer.prosentVillsau ?? null)) {
                   lagreVaerFelt(vaer.id, 'prosentVillsau', verdi)
+                  oppdaterVillsauForEtterkommere({
+                    endretId: vaer.id,
+                    erVaer: true,
+                    nyVerdi: verdi,
+                    alleSauer,
+                    alleVaerer,
+                  })
+                }
               }}
             />
             <div className={styles.lesefelt}>
@@ -662,6 +681,7 @@ function LeggTilParringModal({
 function VaerPage() {
   const { vaerer, isLoading, error } = useVaer()
   const { parringer, isLoading: parringerLaster, error: parringerFeil } = useParring()
+  const { sauer } = useSauer()
   const [leggTilVaerModalOpen, setLeggTilVaerModalOpen] = useState(false)
   const [leggTilParringModalOpen, setLeggTilParringModalOpen] = useState(false)
 
@@ -689,7 +709,7 @@ function VaerPage() {
       {!isLoading && vaerer.length > 0 && (
         <ul className={styles.list}>
           {vaerer.map((vaer) => (
-            <VaerRad key={vaer.id} vaer={vaer} />
+            <VaerRad key={vaer.id} vaer={vaer} alleVaerer={vaerer} alleSauer={sauer} />
           ))}
         </ul>
       )}

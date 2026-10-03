@@ -12,9 +12,19 @@ export interface Sau {
   foedselsdato?: string
   farge?: string
   vekt?: number
+  /** Fødselsvekt i kg */
+  foedselsvekt?: number
+  /** Høstvekt i kg */
+  hoestvekt?: number
+  /** Slaktevekt i kg – kun relevant for sauer med doedsAarsak "slakt" */
+  slaktevekt?: number
+  /** Feller egen ull */
+  fellerEgenUll?: boolean
+  prosentVillsau?: number
   status?: SauStatus
   kommentar?: string
   barnAv?: string
+  farAv?: string
   doedsAarsak?: SauDoedsAarsak
   doedsAar?: number
   doedKommentar?: string
