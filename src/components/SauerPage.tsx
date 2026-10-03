@@ -1020,6 +1020,33 @@ function DoedeSauerSeksjon({
   )
 }
 
+const OERE_NR_MANGLER = 'xxx'
+
+function ManglerInfoSeksjon({
+  manglerInfoSauer,
+  alleSauer,
+  alleVaerer,
+}: {
+  manglerInfoSauer: SauMedId[]
+  alleSauer: SauMedId[]
+  alleVaerer: VaerMedId[]
+}) {
+  if (manglerInfoSauer.length === 0) return null
+
+  return (
+    <div className={styles.manglerInfoSeksjon}>
+      <h2 className={styles.manglerInfoTittel}>
+        ⚠️ Må fylles inn mer info på ({manglerInfoSauer.length})
+      </h2>
+      <ul className={styles.list}>
+        {manglerInfoSauer.map((sau) => (
+          <SauRad key={sau.id} sau={sau} alleSauer={alleSauer} alleVaerer={alleVaerer} />
+        ))}
+      </ul>
+    </div>
+  )
+}
+
 function SauerPage() {
   const { sauer, isLoading, error } = useSauer()
   const { vaerer } = useVaer()
@@ -1027,6 +1054,9 @@ function SauerPage() {
 
   const levendeSauer = sauer.filter((sau) => !sau.doedsAarsak)
   const doedeSauer = sauer.filter((sau) => sau.doedsAarsak)
+  const manglerInfoSauer = sauer.filter(
+    (sau) => sau.oereNr?.trim().toLowerCase() === OERE_NR_MANGLER,
+  )
 
   return (
     <main className={styles.page}>
@@ -1041,6 +1071,12 @@ function SauerPage() {
         opened={leggTilModalOpen}
         onClose={() => setLeggTilModalOpen(false)}
         alleSauer={sauer}
+      />
+
+      <ManglerInfoSeksjon
+        manglerInfoSauer={manglerInfoSauer}
+        alleSauer={sauer}
+        alleVaerer={vaerer}
       />
 
       {isLoading && <p className={styles.subtitle}>Laster sauer…</p>}

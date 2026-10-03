@@ -226,6 +226,21 @@
   font-size: 0.875rem;
 }
 
+.manglerInfoSeksjon {
+  margin-bottom: 1.5rem;
+  border: 1px solid color-mix(in oklch, oklch(0.75 0.17 70), transparent 40%);
+  border-radius: var(--radius-lg);
+  background: color-mix(in oklch, oklch(0.75 0.17 70), transparent 90%);
+  padding: 1rem;
+}
+
+.manglerInfoTittel {
+  margin: 0 0 0.75rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: oklch(0.4 0.14 70);
+}
+
 .doedeSeksjon {
   margin-top: 1.5rem;
   border: 1px solid var(--border);
