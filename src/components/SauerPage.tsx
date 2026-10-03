@@ -186,7 +186,7 @@ function SauRad({
   const [modalKommentar, setModalKommentar] = useState(sau.doedKommentar ?? '')
   const [modalKjoeptAv, setModalKjoeptAv] = useState(sau.kjoeptAv ?? '')
   const [modalSolgtPris, setModalSolgtPris] = useState<number | string>(sau.solgtPris ?? '')
-  const [modalSlaktevekt, setModalSlaktevekt] = useState<number | string>(sau.slaktevekt ?? '')
+  const [slaktevekt, setSlaktevekt] = useState<number | string>(sau.slaktevekt ?? '')
   const [sletteModalOpen, setSletteModalOpen] = useState(false)
 
   const erDod = !!sau.doedsAarsak
@@ -208,7 +208,6 @@ function SauRad({
     setModalKommentar(sau.doedKommentar ?? '')
     setModalKjoeptAv(sau.kjoeptAv ?? '')
     setModalSolgtPris(sau.solgtPris ?? '')
-    setModalSlaktevekt(sau.slaktevekt ?? '')
     setDoedModalOpen(true)
   }
 
@@ -226,11 +225,7 @@ function SauRad({
       'solgtPris',
       modalAarsak === 'solgt' && modalSolgtPris !== '' ? Number(modalSolgtPris) : null,
     )
-    lagreFelt(
-      sau.id,
-      'slaktevekt',
-      modalAarsak === 'slakt' && modalSlaktevekt !== '' ? Number(modalSlaktevekt) : null,
-    )
+    if (modalAarsak !== 'slakt') lagreFelt(sau.id, 'slaktevekt', null)
     setDoedModalOpen(false)
   }
 
@@ -451,18 +446,6 @@ function SauRad({
                 />
               </>
             )}
-            {modalAarsak === 'slakt' && (
-              <NumberInput
-                mt="sm"
-                label="Slaktevekt"
-                placeholder="Valgfri slaktevekt"
-                suffix=" kg"
-                allowNegative={false}
-                hideControls
-                value={modalSlaktevekt}
-                onChange={setModalSlaktevekt}
-              />
-            )}
             <Textarea
               mt="sm"
               label="Kommentar"
@@ -676,6 +659,22 @@ function SauRad({
                 lagreFelt(sau.id, 'fellerEgenUll', jaNeiTilBool(verdi))
               }}
             />
+            {sau.doedsAarsak === 'slakt' && (
+              <NumberInput
+                className={styles.laastFelt}
+                label="Slaktevekt"
+                placeholder="0"
+                suffix=" kg"
+                allowNegative={false}
+                hideControls
+                value={slaktevekt}
+                onChange={setSlaktevekt}
+                onBlur={() => {
+                  const verdi = slaktevekt === '' ? null : Number(slaktevekt)
+                  if (verdi !== (sau.slaktevekt ?? null)) lagreFelt(sau.id, 'slaktevekt', verdi)
+                }}
+              />
+            )}
           </div>
 
           {(sau.rase || sau.farge || typeof sau.vekt === 'number') && (
