@@ -187,6 +187,7 @@ function SauRad({
   const [modalKjoeptAv, setModalKjoeptAv] = useState(sau.kjoeptAv ?? '')
   const [modalSolgtPris, setModalSolgtPris] = useState<number | string>(sau.solgtPris ?? '')
   const [slaktevekt, setSlaktevekt] = useState<number | string>(sau.slaktevekt ?? '')
+  const [slaktPris, setSlaktPris] = useState<number | string>(sau.slaktPris ?? '')
   const [sletteModalOpen, setSletteModalOpen] = useState(false)
 
   const erDod = !!sau.doedsAarsak
@@ -225,7 +226,10 @@ function SauRad({
       'solgtPris',
       modalAarsak === 'solgt' && modalSolgtPris !== '' ? Number(modalSolgtPris) : null,
     )
-    if (modalAarsak !== 'slakt') lagreFelt(sau.id, 'slaktevekt', null)
+    if (modalAarsak !== 'slakt') {
+      lagreFelt(sau.id, 'slaktevekt', null)
+      lagreFelt(sau.id, 'slaktPris', null)
+    }
     setDoedModalOpen(false)
   }
 
@@ -236,6 +240,7 @@ function SauRad({
     lagreFelt(sau.id, 'kjoeptAv', null)
     lagreFelt(sau.id, 'solgtPris', null)
     lagreFelt(sau.id, 'slaktevekt', null)
+    lagreFelt(sau.id, 'slaktPris', null)
     setDoedModalOpen(false)
   }
 
@@ -394,6 +399,9 @@ function SauRad({
                   {sau.doedsAarsak === 'slakt' &&
                     typeof sau.slaktevekt === 'number' &&
                     ` (${sau.slaktevekt} kg)`}
+                  {sau.doedsAarsak === 'slakt' &&
+                    typeof sau.slaktPris === 'number' &&
+                    ` for ${sau.slaktPris.toLocaleString('nb-NO')} kr`}
                   {sau.doedKommentar && `: ${sau.doedKommentar}`}
                 </>
               )}
@@ -672,6 +680,24 @@ function SauRad({
                 onBlur={() => {
                   const verdi = slaktevekt === '' ? null : Number(slaktevekt)
                   if (verdi !== (sau.slaktevekt ?? null)) lagreFelt(sau.id, 'slaktevekt', verdi)
+                }}
+              />
+            )}
+            {sau.doedsAarsak === 'slakt' && (
+              <NumberInput
+                className={styles.laastFelt}
+                label="Slaktpris"
+                placeholder="0"
+                suffix=" kr"
+                thousandSeparator=" "
+                allowNegative={false}
+                allowDecimal={false}
+                hideControls
+                value={slaktPris}
+                onChange={setSlaktPris}
+                onBlur={() => {
+                  const verdi = slaktPris === '' ? null : Number(slaktPris)
+                  if (verdi !== (sau.slaktPris ?? null)) lagreFelt(sau.id, 'slaktPris', verdi)
                 }}
               />
             )}
