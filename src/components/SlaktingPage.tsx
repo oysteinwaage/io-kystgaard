@@ -50,6 +50,17 @@ function sorterEtterFoedselsaar(sauer: SauMedId[]) {
   return [...sauer].sort((a, b) => (b.foedselsaar ?? 0) - (a.foedselsaar ?? 0))
 }
 
+function grupperEtterFoedselsaar(sauer: SauMedId[]) {
+  const grupper = new Map<string, SauMedId[]>()
+  sorterEtterFoedselsaar(sauer).forEach((sau) => {
+    const noekkel = sau.foedselsaar ? String(sau.foedselsaar) : 'Ukjent fødselsår'
+    const liste = grupper.get(noekkel) ?? []
+    liste.push(sau)
+    grupper.set(noekkel, liste)
+  })
+  return Array.from(grupper.entries()).map(([aar, liste]) => ({ aar, liste }))
+}
+
 function defaultDyrForAar(alleSauer: SauMedId[], aar: number) {
   return alleSauer
     .filter((sau) => !sau.doedsAarsak && sau.kjoenn === 'HANN' && sau.foedselsaar === aar)
@@ -86,12 +97,14 @@ function DyrTilSlaktListe({
   disabled,
   onToggle,
   tokolonner,
+  flerkolonner,
 }: {
   kandidater: SauMedId[]
   valgte: string[]
   disabled?: boolean
   onToggle: (id: string, haket: boolean) => void
   tokolonner?: boolean
+  flerkolonner?: boolean
 }) {
   if (tokolonner) {
     const valgteSet = new Set(valgte)
@@ -154,6 +167,27 @@ function DyrTilSlaktListe({
         <Text size="sm" c="dimmed">
           Ingen sauer å velge mellom.
         </Text>
+      ) : flerkolonner ? (
+        <div className={styles.dyrAarGrupper}>
+          {grupperEtterFoedselsaar(kandidater).map(({ aar, liste }) => (
+            <div key={aar} className={styles.dyrAarGruppe}>
+              <span className={styles.dyrAarTittel}>
+                {aar} ({liste.length})
+              </span>
+              <div className={`${styles.dyrGrid} ${styles.dyrGridFlerkolonner}`}>
+                {liste.map((sau) => (
+                  <Checkbox
+                    key={sau.id}
+                    label={<SauCheckboxLabel sau={sau} />}
+                    checked={valgte.includes(sau.id)}
+                    disabled={disabled}
+                    onChange={(event) => onToggle(sau.id, event.currentTarget.checked)}
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
       ) : (
         <div className={styles.dyrGrid}>
           {kandidater.map((sau) => (
@@ -354,6 +388,7 @@ function SlaktingKort({ slakting, alleSauer }: { slakting: SlaktingMedId; alleSa
         disabled={erLaast}
         onToggle={endreDyr}
         tokolonner={!erLaast}
+        flerkolonner={erLaast}
       />
 
       {!erLaast && (

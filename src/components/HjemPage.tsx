@@ -79,34 +79,27 @@ function HjemPage() {
       )}
 
       {!isLoading && !error && lam.length > 0 && (
-        <>
-          <div className={styles.statGrid}>
-            <StatCard label={`Lam i ${valgtAar}`} value={lam.length} />
-            <StatCard label="Hannlam" value={hannlam} />
-            <StatCard label="Hunnlam" value={hunnlam} />
-            <StatCard label="Levende" value={levende} />
-            <StatCard
-              label="Solgt"
-              value={solgte.length}
-              variant={solgte.length > 0 ? 'solgt' : undefined}
-            />
-            <StatCard label="Døde" value={doede.length} variant={doede.length > 0 ? 'dod' : undefined} />
-          </div>
-
-          {doede.length > 0 && (
-            <div className={styles.section}>
-              <h2 className={styles.sectionTitle}>Dødsårsak</h2>
-              <dl className={styles.breakdown}>
-                {(Object.keys(doedsAarsakLabel) as Exclude<SauDoedsAarsak, 'solgt'>[]).map((aarsak) => (
-                  <div className={styles.breakdownRow} key={aarsak}>
-                    <dt className={styles.breakdownLabel}>{doedsAarsakLabel[aarsak]}</dt>
-                    <dd className={styles.breakdownValue}>{doedsAarsakTelling[aarsak]}</dd>
-                  </div>
-                ))}
-              </dl>
-            </div>
-          )}
-        </>
+        <div className={styles.statGrid}>
+          <StatCard label={`Lam i ${valgtAar}`} value={lam.length} />
+          <StatCard label="♂ Værlam" value={hannlam} />
+          <StatCard label="♀ Søye" value={hunnlam} />
+          <StatCard label="Levende" value={levende} />
+          <StatCard
+            label="Solgt"
+            value={solgte.length}
+            variant={solgte.length > 0 ? 'solgt' : undefined}
+          />
+          {(Object.keys(doedsAarsakLabel) as Exclude<SauDoedsAarsak, 'solgt'>[])
+            .filter((aarsak) => doedsAarsakTelling[aarsak] > 0)
+            .map((aarsak) => (
+              <StatCard
+                key={aarsak}
+                label={doedsAarsakLabel[aarsak]}
+                value={doedsAarsakTelling[aarsak]}
+                variant="dod"
+              />
+            ))}
+        </div>
       )}
     </main>
   )

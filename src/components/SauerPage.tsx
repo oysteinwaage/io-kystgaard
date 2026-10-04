@@ -1124,7 +1124,7 @@ function SauerPage() {
     <main className={styles.page}>
       <Group justify="space-between" align="center" mb="1.5rem">
         <h1 className={styles.title} style={{ margin: 0 }}>
-          Sauer
+          Sauer ({levendeSauer.length})
         </h1>
         <Button onClick={() => setLeggTilModalOpen(true)}>Legg til sau</Button>
       </Group>
