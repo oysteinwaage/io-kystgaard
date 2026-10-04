@@ -20,6 +20,8 @@ export interface Sau {
   slaktevekt?: number
   /** Slaktpris i kr – kun relevant for sauer med doedsAarsak "slakt" */
   slaktPris?: number
+  /** Klassifiseringskategori (f.eks. "O-", "P+") – kun relevant for sauer med doedsAarsak "slakt" */
+  slaktKategori?: string
   /** Feller egen ull */
   fellerEgenUll?: boolean
   prosentVillsau?: number

@@ -188,20 +188,25 @@ function SauRad({
   const [modalSolgtPris, setModalSolgtPris] = useState<number | string>(sau.solgtPris ?? '')
   const [slaktevekt, setSlaktevekt] = useState<number | string>(sau.slaktevekt ?? '')
   const [slaktPris, setSlaktPris] = useState<number | string>(sau.slaktPris ?? '')
+  const [slaktKategori, setSlaktKategori] = useState(sau.slaktKategori ?? '')
   const [sletteModalOpen, setSletteModalOpen] = useState(false)
 
   const erDod = !!sau.doedsAarsak
   const erSolgt = sau.doedsAarsak === 'solgt'
 
-  const navnLaast = erDod || (!laastOpp && !!sau.navn)
-  const oereNrLaast = erDod || (!laastOpp && !!sau.oereNr)
-  const foedselsaarLaast = erDod || (!laastOpp && !!sau.foedselsaar)
-  const foedselsdatoLaast = erDod || (!laastOpp && !!sau.foedselsdato)
-  const kjoennLaast = erDod || (!laastOpp && !!sau.kjoenn)
-  const morLaast = erDod || (!laastOpp && !!sau.barnAv)
-  const farLaast = erDod || (!laastOpp && !!sau.farAv)
+  const navnLaast = !laastOpp && (erDod || !!sau.navn)
+  const oereNrLaast = !laastOpp && (erDod || !!sau.oereNr)
+  const foedselsaarLaast = !laastOpp && (erDod || !!sau.foedselsaar)
+  const foedselsdatoLaast = !laastOpp && (erDod || !!sau.foedselsdato)
+  const kjoennLaast = !laastOpp && (erDod || !!sau.kjoenn)
+  const morLaast = !laastOpp && (erDod || !!sau.barnAv)
+  const farLaast = !laastOpp && (erDod || !!sau.farAv)
   const prosentVillsauKalkulert = !!sau.barnAv && !!sau.farAv
-  const prosentVillsauLaast = erDod || (!laastOpp && sau.prosentVillsau != null)
+  const prosentVillsauLaast = !laastOpp && (erDod || sau.prosentVillsau != null)
+  const slaktevektLaast = !laastOpp && (erDod || typeof sau.slaktevekt === 'number')
+  const slaktPrisLaast = !laastOpp && (erDod || typeof sau.slaktPris === 'number')
+  const slaktKategoriLaast = !laastOpp && (erDod || !!sau.slaktKategori)
+  const doedLaast = !laastOpp && erDod
 
   function aapneDoedModal() {
     setModalAarsak(sau.doedsAarsak ?? null)
@@ -229,6 +234,7 @@ function SauRad({
     if (modalAarsak !== 'slakt') {
       lagreFelt(sau.id, 'slaktevekt', null)
       lagreFelt(sau.id, 'slaktPris', null)
+      lagreFelt(sau.id, 'slaktKategori', null)
     }
     setDoedModalOpen(false)
   }
@@ -241,6 +247,7 @@ function SauRad({
     lagreFelt(sau.id, 'solgtPris', null)
     lagreFelt(sau.id, 'slaktevekt', null)
     lagreFelt(sau.id, 'slaktPris', null)
+    lagreFelt(sau.id, 'slaktKategori', null)
     setDoedModalOpen(false)
   }
 
@@ -338,7 +345,6 @@ function SauRad({
               <ActionIcon
                 variant="subtle"
                 aria-label={laastOpp ? 'Lås redigering' : 'Lås opp redigering'}
-                disabled={erDod}
                 onClick={() => setLaastOpp((verdi) => !verdi)}
               >
                 {laastOpp ? '🔓' : '🔒'}
@@ -402,6 +408,7 @@ function SauRad({
                   {sau.doedsAarsak === 'slakt' &&
                     typeof sau.slaktPris === 'number' &&
                     ` for ${sau.slaktPris.toLocaleString('nb-NO')} kr`}
+                  {sau.doedsAarsak === 'slakt' && sau.slaktKategori && ` – ${sau.slaktKategori}`}
                   {sau.doedKommentar && `: ${sau.doedKommentar}`}
                 </>
               )}
@@ -631,7 +638,7 @@ function SauRad({
               suffix=" kg"
               allowNegative={false}
               hideControls
-              disabled={erDod}
+              disabled={doedLaast}
               value={foedselsvekt}
               onChange={setFoedselsvekt}
               onBlur={() => {
@@ -646,7 +653,7 @@ function SauRad({
               suffix=" kg"
               allowNegative={false}
               hideControls
-              disabled={erDod}
+              disabled={doedLaast}
               value={hoestvekt}
               onChange={setHoestvekt}
               onBlur={() => {
@@ -660,7 +667,7 @@ function SauRad({
               placeholder="Velg"
               data={jaNeiOptions}
               value={fellerEgenUll}
-              disabled={erDod}
+              disabled={doedLaast}
               clearable
               onChange={(verdi) => {
                 setFellerEgenUll(verdi)
@@ -675,6 +682,7 @@ function SauRad({
                 suffix=" kg"
                 allowNegative={false}
                 hideControls
+                disabled={slaktevektLaast}
                 value={slaktevekt}
                 onChange={setSlaktevekt}
                 onBlur={() => {
@@ -693,11 +701,26 @@ function SauRad({
                 allowNegative={false}
                 allowDecimal={false}
                 hideControls
+                disabled={slaktPrisLaast}
                 value={slaktPris}
                 onChange={setSlaktPris}
                 onBlur={() => {
                   const verdi = slaktPris === '' ? null : Number(slaktPris)
                   if (verdi !== (sau.slaktPris ?? null)) lagreFelt(sau.id, 'slaktPris', verdi)
+                }}
+              />
+            )}
+            {sau.doedsAarsak === 'slakt' && (
+              <TextInput
+                className={styles.laastFelt}
+                label="Slakt kategori"
+                placeholder="F.eks. O-"
+                disabled={slaktKategoriLaast}
+                value={slaktKategori}
+                onChange={(event) => setSlaktKategori(event.currentTarget.value)}
+                onBlur={() => {
+                  const verdi = slaktKategori.trim() ? slaktKategori.trim() : null
+                  if (verdi !== (sau.slaktKategori ?? null)) lagreFelt(sau.id, 'slaktKategori', verdi)
                 }}
               />
             )}
@@ -774,6 +797,7 @@ function tomtNyttSkjema() {
     foedselsaar: null as string | null,
     foedselsdato: null as string | null,
     barnAv: null as string | null,
+    farAv: null as string | null,
     prosentVillsau: '' as number | string,
     foedselsvekt: '' as number | string,
     hoestvekt: '' as number | string,
@@ -786,10 +810,12 @@ function LeggTilSauModal({
   opened,
   onClose,
   alleSauer,
+  alleVaerer,
 }: {
   opened: boolean
   onClose: () => void
   alleSauer: SauMedId[]
+  alleVaerer: VaerMedId[]
 }) {
   const [skjema, setSkjema] = useState(tomtNyttSkjema)
   const [lagrer, setLagrer] = useState(false)
@@ -799,6 +825,7 @@ function LeggTilSauModal({
     undefined,
     skjema.foedselsaar ? Number(skjema.foedselsaar) : null,
   )
+  const vaerAlternativer = vaerAlternativerFra(alleVaerer)
 
   const kanLagre = skjema.oereNr.trim() !== '' && !!skjema.kjoenn
 
@@ -818,6 +845,7 @@ function LeggTilSauModal({
     if (skjema.foedselsaar) nySau.foedselsaar = Number(skjema.foedselsaar)
     if (skjema.foedselsdato) nySau.foedselsdato = skjema.foedselsdato
     if (skjema.barnAv) nySau.barnAv = skjema.barnAv
+    if (skjema.farAv) nySau.farAv = skjema.farAv
     if (skjema.prosentVillsau !== '') nySau.prosentVillsau = Number(skjema.prosentVillsau)
     if (skjema.foedselsvekt !== '') nySau.foedselsvekt = Number(skjema.foedselsvekt)
     if (skjema.hoestvekt !== '') nySau.hoestvekt = Number(skjema.hoestvekt)
@@ -894,6 +922,15 @@ function LeggTilSauModal({
           data={morAlternativer}
           value={skjema.barnAv}
           onChange={(verdi) => setSkjema((s) => ({ ...s, barnAv: verdi }))}
+          searchable
+          clearable
+        />
+        <Select
+          label="Far"
+          placeholder="Velg far"
+          data={vaerAlternativer}
+          value={skjema.farAv}
+          onChange={(verdi) => setSkjema((s) => ({ ...s, farAv: verdi }))}
           searchable
           clearable
         />
@@ -1096,6 +1133,7 @@ function SauerPage() {
         opened={leggTilModalOpen}
         onClose={() => setLeggTilModalOpen(false)}
         alleSauer={sauer}
+        alleVaerer={vaerer}
       />
 
       <ManglerInfoSeksjon

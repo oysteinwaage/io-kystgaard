@@ -73,6 +73,7 @@ function gjennomforSlakting(slakting: SlaktingMedId) {
   }
   dyrIder.forEach((dyrId) => {
     oppdateringer[`sauer/${dyrId}/doedsAarsak`] = 'slakt'
+    oppdateringer[`sauer/${dyrId}/doedsAar`] = slakting.aar
     oppdateringer[`sauer/${dyrId}/doedKommentar`] = `Sendt med slaktebilen ${formatertDato}`
   })
 
