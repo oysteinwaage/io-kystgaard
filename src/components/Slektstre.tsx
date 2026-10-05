@@ -24,6 +24,13 @@ interface ForfedreNode {
   far?: ForfedreNode
 }
 
+interface EtterkommerNode {
+  slot: string
+  ref: IndividRef
+  data: IndividData
+  barn: EtterkommerNode[]
+}
+
 interface Linje {
   key: string
   x1: number
@@ -100,6 +107,63 @@ function samleForfedreKanter(node: ForfedreNode, kanter: Array<{ oppe: string; n
   if (node.far) {
     kanter.push({ oppe: node.far.slot, nede: node.slot })
     samleForfedreKanter(node.far, kanter)
+  }
+}
+
+/**
+ * Bygger etterkommer-treet til et individ rekursivt: barn, barnebarn, oldebarn osv. Et lam
+ * kan selv få lam senere (som mor), så vi følger `barnAvMor`-lista videre for hvert barn.
+ * Et barn kan derimot aldri være far til nye lam her (fedre er alltid værer, ikke sauer), så
+ * `barnAvFar` brukes kun for selve utgangspunktet dersom det er en vær.
+ */
+function byggEtterkommere(
+  ref: IndividRef,
+  slot: string,
+  sauerById: Map<string, SauMedId>,
+  vaererById: Map<string, VaerMedId>,
+  barnAvMor: Map<string, SauMedId[]>,
+  barnAvFar: Map<string, SauMedId[]>,
+  besokt: ReadonlySet<string>,
+  dybde: number,
+): EtterkommerNode | null {
+  const nokkelForRef = noekkel(ref)
+  if (besokt.has(nokkelForRef) || dybde > MAKS_GENERASJONER) return null
+
+  const data = ref.kind === 'sau' ? sauerById.get(ref.id) : vaererById.get(ref.id)
+  if (!data) return null
+
+  const nesteBesokt = new Set(besokt)
+  nesteBesokt.add(nokkelForRef)
+
+  const direkteBarn = ref.kind === 'sau' ? barnAvMor.get(ref.id) : barnAvFar.get(ref.id)
+  const sortertBarn = direkteBarn ? [...direkteBarn].sort(sorterBarn) : []
+
+  const barn = sortertBarn
+    .map((b, i) =>
+      byggEtterkommere(
+        { id: b.id, kind: 'sau' },
+        `${slot}.barn${i}`,
+        sauerById,
+        vaererById,
+        barnAvMor,
+        barnAvFar,
+        nesteBesokt,
+        dybde + 1,
+      ),
+    )
+    .filter((barnNode): barnNode is EtterkommerNode => barnNode != null)
+
+  return { slot, ref, data, barn }
+}
+
+function samleEtterkommerKanter(
+  node: EtterkommerNode,
+  overSlot: string,
+  kanter: Array<{ oppe: string; nede: string }>,
+) {
+  kanter.push({ oppe: overSlot, nede: node.slot })
+  for (const barnNode of node.barn) {
+    samleEtterkommerKanter(barnNode, node.slot, kanter)
   }
 }
 
@@ -214,6 +278,36 @@ function ForfedreGren({
   )
 }
 
+function EtterkommerGren({
+  node,
+  registrer,
+  onVelg,
+}: {
+  node: EtterkommerNode
+  registrer: (slot: string, el: HTMLDivElement | null) => void
+  onVelg: (ref: IndividRef) => void
+}) {
+  return (
+    <div className={styles.gren}>
+      <NodeKort
+        data={node.data}
+        kind={node.ref.kind}
+        registrerRef={(el) => registrer(node.slot, el)}
+        onKlikk={() => onVelg(node.ref)}
+      />
+      {node.barn.length > 0 && (
+        <div className={styles.barnRadWrapper}>
+          <div className={styles.barnRad}>
+            {node.barn.map((barnNode) => (
+              <EtterkommerGren key={barnNode.slot} node={barnNode} registrer={registrer} onVelg={onVelg} />
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 interface SlektstreProps {
   sauer: SauMedId[]
   vaerer: VaerMedId[]
@@ -251,19 +345,35 @@ export function Slektstre({ sauer, vaerer, senter, onVelg }: SlektstreProps) {
     [senter, sauerById, vaererById],
   )
 
-  const barn = useMemo(() => {
-    const liste = senter.kind === 'sau' ? barnAvMor.get(senter.id) : barnAvFar.get(senter.id)
-    return liste ? [...liste].sort(sorterBarn) : []
-  }, [senter, barnAvMor, barnAvFar])
+  const etterkommerBarn = useMemo(() => {
+    const direkteBarn = senter.kind === 'sau' ? barnAvMor.get(senter.id) : barnAvFar.get(senter.id)
+    if (!direkteBarn) return []
+    const besokt = new Set([noekkel(senter)])
+    return [...direkteBarn]
+      .sort(sorterBarn)
+      .map((b, i) =>
+        byggEtterkommere(
+          { id: b.id, kind: 'sau' },
+          `barn${i}`,
+          sauerById,
+          vaererById,
+          barnAvMor,
+          barnAvFar,
+          besokt,
+          1,
+        ),
+      )
+      .filter((node): node is EtterkommerNode => node != null)
+  }, [senter, sauerById, vaererById, barnAvMor, barnAvFar])
 
   const kanter = useMemo(() => {
     const liste: Array<{ oppe: string; nede: string }> = []
     if (forfedreRoot) samleForfedreKanter(forfedreRoot, liste)
-    for (const b of barn) {
-      liste.push({ oppe: 'self', nede: `barn.${b.id}` })
+    for (const node of etterkommerBarn) {
+      samleEtterkommerKanter(node, 'self', liste)
     }
     return liste
-  }, [forfedreRoot, barn])
+  }, [forfedreRoot, etterkommerBarn])
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -354,17 +464,11 @@ export function Slektstre({ sauer, vaerer, senter, onVelg }: SlektstreProps) {
           ))}
         </svg>
         <ForfedreGren node={forfedreRoot} erSenter registrer={registrer} onVelg={onVelg} />
-        {barn.length > 0 && (
+        {etterkommerBarn.length > 0 && (
           <div className={styles.barnRadWrapper}>
             <div className={styles.barnRad}>
-              {barn.map((b) => (
-                <NodeKort
-                  key={b.id}
-                  data={b}
-                  kind="sau"
-                  registrerRef={(el) => registrer(`barn.${b.id}`, el)}
-                  onKlikk={() => onVelg({ id: b.id, kind: 'sau' })}
-                />
+              {etterkommerBarn.map((node) => (
+                <EtterkommerGren key={node.slot} node={node} registrer={registrer} onVelg={onVelg} />
               ))}
             </div>
           </div>
@@ -442,8 +546,8 @@ export function SlektstreSeksjon() {
         <h2 className={pageStyles.sectionTitle}>Slektstre</h2>
         <Text size="sm" c="dimmed" mb="1rem">
           Velg en sau eller vær for å se slektstreet. Forfedre (mor/far og bakover) vises
-          over, og registrerte lam vises under. Klikk på en boks for å utforske slekten
-          videre fra det individet.
+          over, og alle etterkommere (barn, barnebarn osv.) vises under. Klikk på en boks
+          for å utforske slekten videre fra det individet.
         </Text>
 
         <div className={styles.kontroller}>
