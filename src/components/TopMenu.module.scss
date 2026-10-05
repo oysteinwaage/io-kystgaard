@@ -12,6 +12,13 @@
   align-items: center;
   gap: 0.625rem;
   flex-shrink: 0;
+  border: none;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
 }
 
 .logo {
