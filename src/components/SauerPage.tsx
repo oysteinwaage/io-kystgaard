@@ -71,6 +71,12 @@ function jaNeiTilBool(verdi: string | null) {
   return null
 }
 
+const OERE_NR_MANGLER = 'xxx'
+
+function manglerOereNr(sau: Sau) {
+  return sau.oereNr?.trim().toLowerCase() === OERE_NR_MANGLER
+}
+
 const forsteAar = 2010
 const sisteAar = new Date().getFullYear()
 const aarOptions = Array.from({ length: sisteAar - forsteAar + 1 }, (_, i) =>
@@ -195,7 +201,7 @@ function SauRad({
   const erSolgt = sau.doedsAarsak === 'solgt'
 
   const navnLaast = !laastOpp && (erDod || !!sau.navn)
-  const oereNrLaast = !laastOpp && (erDod || !!sau.oereNr)
+  const oereNrLaast = !laastOpp && (erDod || (!!sau.oereNr && !manglerOereNr(sau)))
   const foedselsaarLaast = !laastOpp && (erDod || !!sau.foedselsaar)
   const foedselsdatoLaast = !laastOpp && (erDod || !!sau.foedselsdato)
   const kjoennLaast = !laastOpp && (erDod || !!sau.kjoenn)
@@ -1082,8 +1088,6 @@ function DoedeSauerSeksjon({
   )
 }
 
-const OERE_NR_MANGLER = 'xxx'
-
 function ManglerInfoSeksjon({
   manglerInfoSauer,
   alleSauer,
@@ -1098,7 +1102,7 @@ function ManglerInfoSeksjon({
   return (
     <div className={styles.manglerInfoSeksjon}>
       <h2 className={styles.manglerInfoTittel}>
-        ⚠️ Må fylles inn mer info på ({manglerInfoSauer.length})
+        ⚠️ Må fylles inn mer info på, mangler ørenr +++ ({manglerInfoSauer.length})
       </h2>
       <ul className={styles.list}>
         {manglerInfoSauer.map((sau) => (
@@ -1116,9 +1120,7 @@ function SauerPage() {
 
   const levendeSauer = sauer.filter((sau) => !sau.doedsAarsak)
   const doedeSauer = sauer.filter((sau) => sau.doedsAarsak)
-  const manglerInfoSauer = sauer.filter(
-    (sau) => sau.oereNr?.trim().toLowerCase() === OERE_NR_MANGLER,
-  )
+  const manglerInfoSauer = sauer.filter(manglerOereNr)
 
   return (
     <main className={styles.page}>

@@ -3,6 +3,7 @@ import { onAuthStateChanged, type User } from 'firebase/auth'
 import { onValue, runTransaction } from 'firebase/database'
 import AdminPage from '@/components/AdminPage'
 import HjemPage from '@/components/HjemPage'
+import InfoPage from '@/components/InfoPage'
 import LoginPage from '@/components/LoginPage'
 import PendingApprovalPage from '@/components/PendingApprovalPage'
 import SauerPage from '@/components/SauerPage'
@@ -79,6 +80,7 @@ function App() {
       {view === 'slakting' && <SlaktingPage />}
       {view === 'vaer' && <VaerPage />}
       {view === 'hjem' && <HjemPage />}
+      {view === 'info' && <InfoPage />}
       {view === 'admin' && erAdmin && <AdminPage />}
     </div>
   )
