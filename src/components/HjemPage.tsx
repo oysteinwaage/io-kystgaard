@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Select } from '@mantine/core'
 import { useSauer } from '@/hooks/useSauer'
+import { europKodeForTallverdi, europSnittverdi } from '@/lib/europ'
 import type { SauDoedsAarsak } from '@/types/sau'
 import styles from './HjemPage.module.scss'
 
@@ -35,6 +36,33 @@ function StatCard({
   )
 }
 
+function SlaktStatCard({
+  antall,
+  snittverdi,
+}: {
+  antall: number
+  snittverdi: number | null
+}) {
+  return (
+    <div className={`${styles.statCard} ${styles.slaktCard}`}>
+      <div className={styles.slaktCardHalf}>
+        <span className={styles.slaktLabel}>Slakt</span>
+        <span className={`${styles.slaktValue} ${styles.statValueDod}`}>{antall}</span>
+      </div>
+      <div className={styles.slaktCardDivider} />
+      <div className={styles.slaktCardHalf}>
+        <span className={styles.slaktLabel}>Snittkategori</span>
+        <span className={styles.slaktValue}>
+          {snittverdi != null ? europKodeForTallverdi(snittverdi) : '–'}
+        </span>
+        {snittverdi != null && (
+          <span className={styles.slaktSubvalue}>{snittverdi.toFixed(1)}</span>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function HjemPage() {
   const { sauer, isLoading, error } = useSauer()
   const [valgtAar, setValgtAar] = useState<string>(String(sisteAar))
@@ -55,6 +83,9 @@ function HjemPage() {
     slakt: doede.filter((sau) => sau.doedsAarsak === 'slakt').length,
     forsvunnet: doede.filter((sau) => sau.doedsAarsak === 'forsvunnet').length,
   }
+
+  const slaktet = doede.filter((sau) => sau.doedsAarsak === 'slakt')
+  const slaktSnittverdi = europSnittverdi(slaktet.map((sau) => sau.slaktKategori))
 
   return (
     <main className={styles.page}>
@@ -91,14 +122,22 @@ function HjemPage() {
           />
           {(Object.keys(doedsAarsakLabel) as Exclude<SauDoedsAarsak, 'solgt'>[])
             .filter((aarsak) => doedsAarsakTelling[aarsak] > 0)
-            .map((aarsak) => (
-              <StatCard
-                key={aarsak}
-                label={doedsAarsakLabel[aarsak]}
-                value={doedsAarsakTelling[aarsak]}
-                variant="dod"
-              />
-            ))}
+            .map((aarsak) =>
+              aarsak === 'slakt' ? (
+                <SlaktStatCard
+                  key={aarsak}
+                  antall={doedsAarsakTelling.slakt}
+                  snittverdi={slaktSnittverdi}
+                />
+              ) : (
+                <StatCard
+                  key={aarsak}
+                  label={doedsAarsakLabel[aarsak]}
+                  value={doedsAarsakTelling[aarsak]}
+                  variant="dod"
+                />
+              ),
+            )}
         </div>
       )}
     </main>

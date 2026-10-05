@@ -62,3 +62,41 @@
 .statValueSolgt {
   color: oklch(0.35 0.12 145);
 }
+
+.slaktCard {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.slaktCardHalf {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.slaktCardDivider {
+  align-self: stretch;
+  width: 1px;
+  background: var(--border);
+}
+
+.slaktLabel {
+  color: var(--muted-foreground);
+  font-size: 0.6875rem;
+  line-height: 1.1;
+}
+
+.slaktValue {
+  font-size: 1.1rem;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.slaktSubvalue {
+  color: var(--muted-foreground);
+  font-size: 0.625rem;
+  line-height: 1;
+}

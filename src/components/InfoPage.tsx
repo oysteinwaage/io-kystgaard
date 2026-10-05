@@ -2,18 +2,13 @@ import { useState, type ReactNode } from 'react'
 import { update } from 'firebase/database'
 import { Accordion, Badge, Button, FileInput, Group, Table, Tabs, Text } from '@mantine/core'
 import { useSauer } from '@/hooks/useSauer'
+import { europKategorier } from '@/lib/europ'
 import { appRef } from '@/lib/firebase'
 import type { SlaktOppgjorFunn } from '@/lib/slaktOppgjor'
 import type { SauMedId } from '@/types/sau'
 import styles from './InfoPage.module.scss'
 
-const europKlasser: { bokstav: string; beskrivelse: string }[] = [
-  { bokstav: 'E', beskrivelse: 'Utmerket' },
-  { bokstav: 'U', beskrivelse: 'Meget god' },
-  { bokstav: 'R', beskrivelse: 'God' },
-  { bokstav: 'O', beskrivelse: 'Mindre god' },
-  { bokstav: 'P', beskrivelse: 'Dårlig' },
-]
+const europKategorierBestTilDaarligst = [...europKategorier].reverse()
 
 interface InfoModul {
   id: string
@@ -32,22 +27,33 @@ const infoModuler: InfoModul[] = [
         <Text size="sm" c="dimmed" mb="0.75rem">
           EUROP er det europeiske systemet for å klassifisere slakt etter kjøttfylde
           (konformasjon). Bokstaven viser hvor mye kjøtt dyret har i forhold til skjelett,
-          fra best til dårligst:
+          fra best til dårligst. Hver klasse deles videre inn med + eller − for finere
+          gradering. For å kunne regne snitt-kategori (f.eks. for alle lam født av en gitt
+          sau) er hver kombinasjon gitt en tallverdi fra 1 (dårligst) til 15 (best):
         </Text>
 
-        <ul className={styles.europList}>
-          {europKlasser.map((klasse) => (
-            <li key={klasse.bokstav} className={styles.europItem}>
-              <span className={styles.europLetter}>{klasse.bokstav}</span>
-              <Text size="sm">{klasse.beskrivelse}</Text>
-            </li>
-          ))}
-        </ul>
+        <Table verticalSpacing="0.3rem" withTableBorder withColumnBorders>
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th>Kategori</Table.Th>
+              <Table.Th>Beskrivelse</Table.Th>
+              <Table.Th>Tallverdi</Table.Th>
+            </Table.Tr>
+          </Table.Thead>
+          <Table.Tbody>
+            {europKategorierBestTilDaarligst.map((kategori) => (
+              <Table.Tr key={kategori.kode}>
+                <Table.Td>{kategori.kode}</Table.Td>
+                <Table.Td>{kategori.beskrivelse}</Table.Td>
+                <Table.Td>{kategori.verdi}</Table.Td>
+              </Table.Tr>
+            ))}
+          </Table.Tbody>
+        </Table>
 
-        <Text size="sm" c="dimmed">
-          Hver klasse deles ofte videre inn med + eller − (f.eks. «O−», «P+») for finere
-          gradering innenfor klassen. I tillegg vurderes fettgruppe på en skala fra 1
-          (mager) til 5 (fet), uavhengig av EUROP-bokstaven.
+        <Text size="sm" c="dimmed" mt="0.75rem">
+          I tillegg vurderes fettgruppe på en skala fra 1 (mager) til 5 (fet), uavhengig av
+          EUROP-bokstaven.
         </Text>
       </>
     ),

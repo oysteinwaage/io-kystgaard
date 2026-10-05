@@ -20,28 +20,3 @@
   font-weight: 600;
   margin: 0 0 1rem;
 }
-
-.europList {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  list-style: none;
-  margin: 0 0 1rem;
-  padding: 0;
-}
-
-.europItem {
-  display: flex;
-  align-items: baseline;
-  gap: 0.75rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  background: var(--card);
-  padding: 0.6rem 1rem;
-}
-
-.europLetter {
-  font-weight: 700;
-  font-size: 1.1rem;
-  min-width: 1.5rem;
-}
