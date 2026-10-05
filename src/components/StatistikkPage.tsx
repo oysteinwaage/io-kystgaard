@@ -1,9 +1,65 @@
 import { useMemo, useState } from 'react'
-import { Checkbox, Divider, Group, List, Select, Table, Tabs, Text } from '@mantine/core'
+import {
+  Checkbox,
+  Divider,
+  Group,
+  List,
+  SegmentedControl,
+  Select,
+  Table,
+  Tabs,
+  Text,
+} from '@mantine/core'
 import { useSauer } from '@/hooks/useSauer'
+import { useVaer } from '@/hooks/useVaer'
 import { europKodeForTallverdi, europSnittverdi } from '@/lib/europ'
 import type { SauDoedsAarsak, SauMedId } from '@/types/sau'
+import type { VaerMedId } from '@/types/vaer'
 import styles from './StatistikkPage.module.scss'
+
+/** Felles minimumsform for den "forelderen" (søye eller vær) statistikken grupperes på. */
+interface StatistikkForelder {
+  id: string
+  navn?: string
+  oereNr?: string
+}
+
+type StatistikkModus = 'sau' | 'vaer'
+
+const statistikkModusOptions = [
+  { label: 'Pr søye', value: 'sau' },
+  { label: 'Pr vær', value: 'vaer' },
+]
+
+/**
+ * Finner alle "foreldre" (søyer eller værer) som har minst ett registrert lam, sammen med
+ * lammene deres – gruppert på `barnAv` (mor) eller `farAv` (vær), avhengig av `modus`.
+ */
+function finnForeldreMedBarn(
+  sauer: SauMedId[],
+  vaerer: VaerMedId[],
+  modus: StatistikkModus,
+): Array<{ forelder: StatistikkForelder; barn: SauMedId[] }> {
+  if (modus === 'vaer') {
+    const vaerIder = new Set(sauer.map((sau) => sau.farAv).filter((id): id is string => !!id))
+    return Array.from(vaerIder)
+      .map((vaerId): { forelder: StatistikkForelder; barn: SauMedId[] } | null => {
+        const vaer = vaerer.find((v) => v.id === vaerId)
+        if (!vaer) return null
+        return { forelder: vaer, barn: sauer.filter((sau) => sau.farAv === vaerId) }
+      })
+      .filter((rad): rad is { forelder: StatistikkForelder; barn: SauMedId[] } => rad != null)
+  }
+
+  const morIder = new Set(sauer.map((sau) => sau.barnAv).filter((id): id is string => !!id))
+  return Array.from(morIder)
+    .map((morId) => {
+      const mor = sauer.find((sau) => sau.id === morId)
+      if (!mor) return null
+      return { forelder: mor, barn: sauer.filter((sau) => sau.barnAv === morId) }
+    })
+    .filter((rad): rad is { forelder: StatistikkForelder; barn: SauMedId[] } => rad != null)
+}
 
 const doedsAarsakLabel: Record<Exclude<SauDoedsAarsak, 'solgt'>, string> = {
   sykdom: 'Sykdom',
@@ -48,7 +104,7 @@ interface ParamStat {
 }
 
 interface MorSlaktStatistikk {
-  mor: SauMedId
+  mor: StatistikkForelder
   slaktKategori: ParamStat
   slaktPris: ParamStat
   slaktevekt: ParamStat
@@ -76,7 +132,10 @@ function sum(verdier: number[]): number | null {
  * er best. Poengsummen (0–100) er gjennomsnittet av de normaliserte verdiene. Rader uten
  * noen gyldig verdi for de avhukede parametrene utelates.
  */
-function beregnRangering<P extends string, T extends { mor: SauMedId } & Record<P, { snitt: number | null }>>(
+function beregnRangering<
+  P extends string,
+  T extends { mor: StatistikkForelder } & Record<P, { snitt: number | null }>,
+>(
   statistikker: T[],
   aktiveParametre: P[],
   lavestErBest: Record<P, boolean>,
@@ -121,7 +180,7 @@ function beregnRangering<P extends string, T extends { mor: SauMedId } & Record<
     .sort((a, b) => b.poengsum - a.poengsum)
 }
 
-function beregnMorStatistikk(mor: SauMedId, barn: SauMedId[]): MorSlaktStatistikk {
+function beregnMorStatistikk(mor: StatistikkForelder, barn: SauMedId[]): MorSlaktStatistikk {
   const medSlaktKategori = barn.filter((b) => b.slaktKategori)
   const medSlaktPris = barn.filter((b) => b.slaktPris != null)
   const medSlaktevekt = barn.filter((b) => b.slaktevekt != null)
@@ -257,7 +316,7 @@ interface LamParamStat {
 }
 
 interface MorLamStatistikk {
-  mor: SauMedId
+  mor: StatistikkForelder
   lamPerAar: LamParamStat
   foedselsvekt: LamParamStat
   foedselsvektTotal: LamParamStat
@@ -271,7 +330,7 @@ interface RangertMorLam extends MorLamStatistikk {
   poengsum: number
 }
 
-function beregnMorLamStatistikk(mor: SauMedId, barn: SauMedId[]): MorLamStatistikk {
+function beregnMorLamStatistikk(mor: StatistikkForelder, barn: SauMedId[]): MorLamStatistikk {
   const aarTelling = new Map<number, number>()
   for (const b of barn) {
     if (b.foedselsaar != null) {
@@ -339,13 +398,16 @@ function formatterLamParamverdi(param: LamParam, snitt: number): string {
 
 function LamPrSoyeTabell({
   sauer,
+  vaerer,
   isLoading,
   error,
 }: {
   sauer: SauMedId[]
+  vaerer: VaerMedId[]
   isLoading: boolean
   error: string | null
 }) {
+  const [modus, setModus] = useState<StatistikkModus>('sau')
   const [valgteParametre, setValgteParametre] = useState<Record<LamParam, boolean>>({
     lamPerAar: true,
     foedselsvekt: true,
@@ -355,20 +417,23 @@ function LamPrSoyeTabell({
     sykdomProsent: true,
   })
 
+  const erVaer = modus === 'vaer'
+  const forelderEntall = erVaer ? 'vær' : 'søye'
+  const forelderFlertall = erVaer ? 'værer' : 'søyer'
+  const forelderFlertallStor = erVaer ? 'Værer' : 'Søyer'
+  const forelderPossessiv = erVaer ? 'hans' : 'hennes'
+  const forelderSubjekt = erVaer ? 'han' : 'hun'
+  const forelderKolonne = erVaer ? 'Vær' : 'Søye'
+
   const aktiveParametre = lamParametre.filter((param) => valgteParametre[param])
 
-  const alleMorStatistikker = useMemo<MorLamStatistikk[]>(() => {
-    const morIder = new Set(sauer.map((sau) => sau.barnAv).filter((id): id is string => !!id))
-
-    return Array.from(morIder)
-      .map((morId) => {
-        const mor = sauer.find((sau) => sau.id === morId)
-        if (!mor) return null
-        const barn = sauer.filter((sau) => sau.barnAv === morId)
-        return beregnMorLamStatistikk(mor, barn)
-      })
-      .filter((rad): rad is MorLamStatistikk => rad != null)
-  }, [sauer])
+  const alleMorStatistikker = useMemo<MorLamStatistikk[]>(
+    () =>
+      finnForeldreMedBarn(sauer, vaerer, modus).map(({ forelder, barn }) =>
+        beregnMorLamStatistikk(forelder, barn),
+      ),
+    [sauer, vaerer, modus],
+  )
 
   const rangerteMoedre = useMemo<RangertMorLam[]>(
     () => beregnRangering(alleMorStatistikker, aktiveParametre, lamParamLavestErBest),
@@ -382,11 +447,24 @@ function LamPrSoyeTabell({
   return (
     <>
       <div className={styles.smalInnhold}>
-        <h3 className={styles.undertabellTitel}>Lam pr søye</h3>
+        <h3 className={styles.undertabellTitel}>Lam pr {forelderEntall}</h3>
+
+        <div className={styles.modusVelger}>
+          <Text size="sm" fw={500}>
+            Vis statistikk for
+          </Text>
+          <SegmentedControl
+            size="xs"
+            data={statistikkModusOptions}
+            value={modus}
+            onChange={(verdi) => setModus(verdi as StatistikkModus)}
+          />
+        </div>
+
         <Text size="sm" c="dimmed" mb="1rem">
-          Søyer rangert etter snitt for sine registrerte lam, basert på parametrene valgt
-          under, fra best til verst. Kjønnsfordeling vises kun som informasjon og påvirker
-          ikke rangeringen.
+          {forelderFlertallStor} rangert etter snitt for sine registrerte lam, basert på
+          parametrene valgt under, fra best til verst. Kjønnsfordeling vises kun som
+          informasjon og påvirker ikke rangeringen.
         </Text>
 
         <Group mb="1.25rem" gap="1.25rem">
@@ -410,7 +488,7 @@ function LamPrSoyeTabell({
 
       {!isLoading && !error && aktiveParametre.length > 0 && rangerteMoedre.length === 0 && (
         <p className={styles.subtitle}>
-          Ingen søyer har registrerte lam med data for valgte parametre ennå.
+          Ingen {forelderFlertall} har registrerte lam med data for valgte parametre ennå.
         </p>
       )}
 
@@ -426,7 +504,7 @@ function LamPrSoyeTabell({
           <Table.Thead>
             <Table.Tr>
               <Table.Th>#</Table.Th>
-              <Table.Th>Søye</Table.Th>
+              <Table.Th>{forelderKolonne}</Table.Th>
               {aktiveParametre.map((param) => (
                 <Table.Th key={param}>{lamParamLabel[param]}</Table.Th>
               ))}
@@ -485,35 +563,36 @@ function LamPrSoyeTabell({
           </Text>
           <List size="sm" c="dimmed" spacing="0.25rem">
             <List.Item>
-              For lam pr år, fødselsvekt, høstvekt og dødd av sykdom beregnes et snitt per
-              søye, basert på lammene hennes som har en registrert verdi for den
-              parameteren: lam pr år er antall lam delt på antall år hun faktisk har hatt
-              lam, fødselsvekt og høstvekt er snittvekt i kg, og dødd av sykdom er hvor stor
-              andel av alle lammene hennes som har dødd av sykdom.
+              For lam pr år, fødselsvekt, høstvekt og dødd av sykdom beregnes et snitt per{' '}
+              {forelderEntall}, basert på lammene {forelderPossessiv} som har en registrert
+              verdi for den parameteren: lam pr år er antall lam delt på antall år{' '}
+              {forelderSubjekt} faktisk har hatt lam, fødselsvekt og høstvekt er snittvekt i
+              kg, og dødd av sykdom er hvor stor andel av alle lammene {forelderPossessiv}{' '}
+              som har dødd av sykdom.
             </List.Item>
             <List.Item>
               For totalvekt (fødsel) og totalvekt (høst) summeres i stedet vektene til alle
-              lammene hennes, siden det sier noe om samlet produksjon og ikke bare
-              gjennomsnittlig vekt pr lam.
+              lammene {forelderPossessiv}, siden det sier noe om samlet produksjon og ikke
+              bare gjennomsnittlig vekt pr lam.
             </List.Item>
             <List.Item>
               Verdiene normaliseres deretter hver for seg til en skala fra 0 til 1, ut fra
-              laveste og høyeste verdi blant alle søyer – slik at lam pr år, vekt(er) og
-              sykdomsandel kan vektes likt selv om de har helt forskjellige enheter. For
-              dødd av sykdom er det en lavere andel som gir best score.
+              laveste og høyeste verdi blant alle {forelderFlertall} – slik at lam pr år,
+              vekt(er) og sykdomsandel kan vektes likt selv om de har helt forskjellige
+              enheter. For dødd av sykdom er det en lavere andel som gir best score.
             </List.Item>
             <List.Item>
               Poengsummen (0–100) er gjennomsnittet av de normaliserte verdiene for de
-              avhukede parametrene. Søyene rangeres fra høyest til lavest poengsum, altså
-              fra best til verst.
+              avhukede parametrene. {forelderFlertallStor} rangeres fra høyest til lavest
+              poengsum, altså fra best til verst.
             </List.Item>
             <List.Item>
               Kjønnsfordeling vises bare som informasjon og påvirker ikke poengsummen eller
               rangeringen.
             </List.Item>
             <List.Item>
-              Kun søyer med minst ett lam som har en registrert verdi for minst én av de
-              valgte parametrene vises i tabellen.
+              Kun {forelderFlertall} med minst ett lam som har en registrert verdi for
+              minst én av de valgte parametrene vises i tabellen.
             </List.Item>
           </List>
         </div>
@@ -524,6 +603,7 @@ function LamPrSoyeTabell({
 
 function LammingSeksjon() {
   const { sauer, isLoading, error } = useSauer()
+  const { vaerer, isLoading: vaerLaster, error: vaerFeil } = useVaer()
   const [valgtAar, setValgtAar] = useState<string>(String(sisteLammeAar))
 
   const lam = useMemo(
@@ -604,13 +684,22 @@ function LammingSeksjon() {
 
       <Divider my="2rem" />
 
-      <LamPrSoyeTabell sauer={sauer} isLoading={isLoading} error={error} />
+      <LamPrSoyeTabell
+        sauer={sauer}
+        vaerer={vaerer}
+        isLoading={isLoading || vaerLaster}
+        error={error ?? vaerFeil}
+      />
     </section>
   )
 }
 
 function SlaktingSeksjon() {
-  const { sauer, isLoading, error } = useSauer()
+  const { sauer, isLoading: sauerLaster, error: sauerFeil } = useSauer()
+  const { vaerer, isLoading: vaerLaster, error: vaerFeil } = useVaer()
+  const isLoading = sauerLaster || vaerLaster
+  const error = sauerFeil ?? vaerFeil
+  const [modus, setModus] = useState<StatistikkModus>('sau')
   const [valgteParametre, setValgteParametre] = useState<Record<SlaktParam, boolean>>({
     slaktKategori: true,
     slaktPris: true,
@@ -618,20 +707,21 @@ function SlaktingSeksjon() {
     slaktevektTotal: true,
   })
 
+  const erVaer = modus === 'vaer'
+  const forelderFlertall = erVaer ? 'værer' : 'sauer'
+  const forelderFlertallStor = erVaer ? 'Værer' : 'Sauer'
+  const forelderPossessiv = erVaer ? 'hans' : 'hennes'
+  const forelderKolonne = erVaer ? 'Vær' : 'Sau'
+
   const aktiveParametre = slaktParametre.filter((param) => valgteParametre[param])
 
-  const alleMorStatistikker = useMemo<MorSlaktStatistikk[]>(() => {
-    const morIder = new Set(sauer.map((sau) => sau.barnAv).filter((id): id is string => !!id))
-
-    return Array.from(morIder)
-      .map((morId) => {
-        const mor = sauer.find((sau) => sau.id === morId)
-        if (!mor) return null
-        const barn = sauer.filter((sau) => sau.barnAv === morId)
-        return beregnMorStatistikk(mor, barn)
-      })
-      .filter((rad): rad is MorSlaktStatistikk => rad != null)
-  }, [sauer])
+  const alleMorStatistikker = useMemo<MorSlaktStatistikk[]>(
+    () =>
+      finnForeldreMedBarn(sauer, vaerer, modus).map(({ forelder, barn }) =>
+        beregnMorStatistikk(forelder, barn),
+      ),
+    [sauer, vaerer, modus],
+  )
 
   const rangerteMoedre = useMemo<RangertMor[]>(
     () => beregnRangering(alleMorStatistikker, aktiveParametre, slaktParamLavestErBest),
@@ -645,10 +735,23 @@ function SlaktingSeksjon() {
   return (
     <section className={styles.section}>
       <div className={styles.smalInnhold}>
-        <h2 className={styles.sectionTitle}>Snitt slaktestatistikk per sau</h2>
+        <h2 className={styles.sectionTitle}>Snitt slaktestatistikk per {erVaer ? 'vær' : 'sau'}</h2>
+
+        <div className={styles.modusVelger}>
+          <Text size="sm" fw={500}>
+            Vis statistikk for
+          </Text>
+          <SegmentedControl
+            size="xs"
+            data={statistikkModusOptions}
+            value={modus}
+            onChange={(verdi) => setModus(verdi as StatistikkModus)}
+          />
+        </div>
+
         <Text size="sm" c="dimmed" mb="1rem">
-          Sauer rangert etter snitt for sine registrerte lam, basert på parametrene valgt
-          under, fra best til verst.
+          {forelderFlertallStor} rangert etter snitt for sine registrerte lam, basert på
+          parametrene valgt under, fra best til verst.
         </Text>
 
         <Group mb="1.25rem" gap="1.25rem">
@@ -672,7 +775,7 @@ function SlaktingSeksjon() {
 
       {!isLoading && !error && aktiveParametre.length > 0 && rangerteMoedre.length === 0 && (
         <p className={styles.subtitle}>
-          Ingen sauer har registrerte lam med data for valgte parametre ennå.
+          Ingen {forelderFlertall} har registrerte lam med data for valgte parametre ennå.
         </p>
       )}
 
@@ -688,7 +791,7 @@ function SlaktingSeksjon() {
           <Table.Thead>
             <Table.Tr>
               <Table.Th>#</Table.Th>
-              <Table.Th>Sau</Table.Th>
+              <Table.Th>{forelderKolonne}</Table.Th>
               {aktiveParametre.map((param) => (
                 <Table.Th key={param}>{slaktParamLabel[param]}</Table.Th>
               ))}
@@ -735,26 +838,28 @@ function SlaktingSeksjon() {
           </Text>
           <List size="sm" c="dimmed" spacing="0.25rem">
             <List.Item>
-              For slaktekategori, slaktpris og slaktevekt snitt beregnes et snitt per sau,
-              basert på lammene hennes som har en registrert verdi for den parameteren
-              (slaktekategori gjøres om til en tallverdi fra 1 for P− til 15 for E+, slik at
-              den kan regnes på som et tall). For slaktevekt totalt summeres slaktevekten
-              til alle lammene hennes i stedet, siden det sier noe om samlet kjøttproduksjon
-              og ikke bare kvaliteten pr lam.
+              For slaktekategori, slaktpris og slaktevekt snitt beregnes et snitt per{' '}
+              {erVaer ? 'vær' : 'sau'}, basert på lammene {forelderPossessiv} som har en
+              registrert verdi for den parameteren (slaktekategori gjøres om til en
+              tallverdi fra 1 for P− til 15 for E+, slik at den kan regnes på som et tall).
+              For slaktevekt totalt summeres slaktevekten til alle lammene{' '}
+              {forelderPossessiv} i stedet, siden det sier noe om samlet kjøttproduksjon og
+              ikke bare kvaliteten pr lam.
             </List.Item>
             <List.Item>
               Verdiene normaliseres deretter hver for seg til en skala fra 0 til 1, ut fra
-              laveste og høyeste verdi blant alle sauer – slik at kategori, pris og de to
-              vektmålene kan vektes likt selv om de har helt forskjellige enheter.
+              laveste og høyeste verdi blant alle {forelderFlertall} – slik at kategori,
+              pris og de to vektmålene kan vektes likt selv om de har helt forskjellige
+              enheter.
             </List.Item>
             <List.Item>
               Poengsummen (0–100) er gjennomsnittet av de normaliserte verdiene for de
-              avhukede parametrene. Sauene rangeres fra høyest til lavest poengsum, altså
-              fra best til verst.
+              avhukede parametrene. {forelderFlertallStor} rangeres fra høyest til lavest
+              poengsum, altså fra best til verst.
             </List.Item>
             <List.Item>
-              Kun sauer med minst ett lam som har en registrert verdi for minst én av de
-              valgte parametrene vises i tabellen.
+              Kun {forelderFlertall} med minst ett lam som har en registrert verdi for
+              minst én av de valgte parametrene vises i tabellen.
             </List.Item>
           </List>
         </div>
@@ -789,7 +894,7 @@ interface BestSoyeParamStat {
 }
 
 interface MorBestSoyeStatistikk {
-  mor: SauMedId
+  mor: StatistikkForelder
   lamming: BestSoyeParamStat
   slakting: BestSoyeParamStat
 }
@@ -803,22 +908,29 @@ function formatterBestSoyeParamverdi(snitt: number): string {
 }
 
 function BestSoyeSeksjon() {
-  const { sauer, isLoading, error } = useSauer()
+  const { sauer, isLoading: sauerLaster, error: sauerFeil } = useSauer()
+  const { vaerer, isLoading: vaerLaster, error: vaerFeil } = useVaer()
+  const isLoading = sauerLaster || vaerLaster
+  const error = sauerFeil ?? vaerFeil
+  const [modus, setModus] = useState<StatistikkModus>('sau')
   const [valgteParametre, setValgteParametre] = useState<Record<BestSoyeParam, boolean>>({
     lamming: true,
     slakting: true,
   })
 
+  const erVaer = modus === 'vaer'
+  const forelderEntall = erVaer ? 'vær' : 'søye'
+  const forelderFlertall = erVaer ? 'værer' : 'søyer'
+  const forelderFlertallStor = erVaer ? 'Værer' : 'Søyer'
+  const forelderKolonne = erVaer ? 'Vær' : 'Søye'
+
   const aktiveParametre = bestSoyeParametre.filter((param) => valgteParametre[param])
 
   const alleMorStatistikker = useMemo<MorBestSoyeStatistikk[]>(() => {
-    const morIder = new Set(sauer.map((sau) => sau.barnAv).filter((id): id is string => !!id))
-    const moedre = Array.from(morIder)
-      .map((morId) => sauer.find((sau) => sau.id === morId))
-      .filter((mor): mor is SauMedId => !!mor)
+    const foreldreMedBarn = finnForeldreMedBarn(sauer, vaerer, modus)
 
-    const lamStatistikker = moedre.map((mor) =>
-      beregnMorLamStatistikk(mor, sauer.filter((sau) => sau.barnAv === mor.id)),
+    const lamStatistikker = foreldreMedBarn.map(({ forelder, barn }) =>
+      beregnMorLamStatistikk(forelder, barn),
     )
     const lammingResultater = beregnRangering(lamStatistikker, lamParametre, lamParamLavestErBest)
     const lammingMap = new Map(
@@ -828,8 +940,8 @@ function BestSoyeSeksjon() {
       ]),
     )
 
-    const slaktStatistikker = moedre.map((mor) =>
-      beregnMorStatistikk(mor, sauer.filter((sau) => sau.barnAv === mor.id)),
+    const slaktStatistikker = foreldreMedBarn.map(({ forelder, barn }) =>
+      beregnMorStatistikk(forelder, barn),
     )
     const slaktingResultater = beregnRangering(
       slaktStatistikker,
@@ -843,12 +955,12 @@ function BestSoyeSeksjon() {
       ]),
     )
 
-    return moedre.map((mor) => ({
-      mor,
-      lamming: lammingMap.get(mor.id) ?? { snitt: null, antall: 0 },
-      slakting: slaktingMap.get(mor.id) ?? { snitt: null, antall: 0 },
+    return foreldreMedBarn.map(({ forelder }) => ({
+      mor: forelder,
+      lamming: lammingMap.get(forelder.id) ?? { snitt: null, antall: 0 },
+      slakting: slaktingMap.get(forelder.id) ?? { snitt: null, antall: 0 },
     }))
-  }, [sauer])
+  }, [sauer, vaerer, modus])
 
   const rangerteMoedre = useMemo<RangertMorBestSoye[]>(
     () => beregnRangering(alleMorStatistikker, aktiveParametre, bestSoyeLavestErBest),
@@ -862,10 +974,23 @@ function BestSoyeSeksjon() {
   return (
     <section className={styles.section}>
       <div className={styles.smalInnhold}>
-        <h2 className={styles.sectionTitle}>Beste søye</h2>
+        <h2 className={styles.sectionTitle}>Beste {forelderEntall}</h2>
+
+        <div className={styles.modusVelger}>
+          <Text size="sm" fw={500}>
+            Vis statistikk for
+          </Text>
+          <SegmentedControl
+            size="xs"
+            data={statistikkModusOptions}
+            value={modus}
+            onChange={(verdi) => setModus(verdi as StatistikkModus)}
+          />
+        </div>
+
         <Text size="sm" c="dimmed" mb="1rem">
-          Søyer rangert etter en samlet poengsum fra Lamming- og Slakting-beregningene,
-          basert på parametrene valgt under, fra best til verst.
+          {forelderFlertallStor} rangert etter en samlet poengsum fra Lamming- og
+          Slakting-beregningene, basert på parametrene valgt under, fra best til verst.
         </Text>
 
         <Group mb="1.25rem" gap="1.25rem">
@@ -889,7 +1014,7 @@ function BestSoyeSeksjon() {
 
       {!isLoading && !error && aktiveParametre.length > 0 && rangerteMoedre.length === 0 && (
         <p className={styles.subtitle}>
-          Ingen søyer har en beregnet poengsum for valgte parametre ennå.
+          Ingen {forelderFlertall} har en beregnet poengsum for valgte parametre ennå.
         </p>
       )}
 
@@ -905,7 +1030,7 @@ function BestSoyeSeksjon() {
             <Table.Thead>
               <Table.Tr>
                 <Table.Th>#</Table.Th>
-                <Table.Th>Søye</Table.Th>
+                <Table.Th>{forelderKolonne}</Table.Th>
                 {aktiveParametre.map((param) => (
                   <Table.Th key={param}>{bestSoyeParamLabel[param]}</Table.Th>
                 ))}
@@ -954,9 +1079,13 @@ function BestSoyeSeksjon() {
       <div className={styles.smalInnhold}>
         <div className={styles.forklaring}>
           <Text size="sm" fw={600} mb="0.5rem">
-            Hvordan regnes "beste søye" ut?
+            Hvordan regnes "beste {forelderEntall}" ut?
           </Text>
           <List size="sm" c="dimmed" spacing="0.25rem">
+            <List.Item>
+              Grupperingen følger valget "Vis statistikk for" over – pr søye (basert på
+              lammenes mor) eller pr vær (basert på lammenes far).
+            </List.Item>
             <List.Item>
               Lamming-poengsummen hentes fra samme beregning som på Lamming-siden (lam pr
               år, fødsels- og høstvekt – både snitt og totalt – og andel dødd av sykdom),
@@ -970,17 +1099,18 @@ function BestSoyeSeksjon() {
             </List.Item>
             <List.Item>
               De to poengsummene (0–100) normaliseres på nytt mot hverandre, hver for seg,
-              til en skala fra 0 til 1 ut fra laveste og høyeste poengsum blant alle søyer –
-              akkurat som på de to andre sidene.
+              til en skala fra 0 til 1 ut fra laveste og høyeste poengsum blant alle{' '}
+              {forelderFlertall} – akkurat som på de to andre sidene.
             </List.Item>
             <List.Item>
               Den endelige poengsummen (0–100) her er gjennomsnittet av de normaliserte
-              verdiene for de avhukede parametrene (Lamming og/eller Slakting). Søyene
-              rangeres fra høyest til lavest poengsum, altså fra best til verst.
+              verdiene for de avhukede parametrene (Lamming og/eller Slakting).{' '}
+              {forelderFlertallStor} rangeres fra høyest til lavest poengsum, altså fra
+              best til verst.
             </List.Item>
             <List.Item>
-              Kun søyer med en beregnet poengsum for minst én av de valgte parametrene vises
-              i tabellen.
+              Kun {forelderFlertall} med en beregnet poengsum for minst én av de valgte
+              parametrene vises i tabellen.
             </List.Item>
           </List>
         </div>
