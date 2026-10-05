@@ -8,6 +8,7 @@ import {
   Modal,
   NumberInput,
   Select,
+  Switch,
   Text,
   Textarea,
   TextInput,
@@ -165,10 +166,12 @@ function SauRad({
   sau,
   alleSauer,
   alleVaerer,
+  visVillsauInfo,
 }: {
   sau: SauMedId
   alleSauer: SauMedId[]
   alleVaerer: VaerMedId[]
+  visVillsauInfo?: boolean
 }) {
   const [isOpen, setIsOpen] = useState(false)
   const [navn, setNavn] = useState(sau.navn ?? '')
@@ -312,6 +315,13 @@ function SauRad({
             ⚠️ Mangler mor/far
           </span>
         )}
+
+        {visVillsauInfo &&
+          (sau.prosentVillsau != null ? (
+            <span className={styles.status}>{sau.prosentVillsau} % villsau</span>
+          ) : (
+            <span className={styles.manglerForeldre}>Mangler %-andel villsau</span>
+          ))}
 
         {erDod && (
           <span
@@ -1127,10 +1137,20 @@ function SauerPage() {
   const { sauer, isLoading, error } = useSauer()
   const { vaerer } = useVaer()
   const [leggTilModalOpen, setLeggTilModalOpen] = useState(false)
+  const [sorterEtterVillsau, setSorterEtterVillsau] = useState(false)
 
   const levendeSauer = sauer.filter((sau) => !sau.doedsAarsak)
   const doedeSauer = sauer.filter((sau) => sau.doedsAarsak)
   const manglerInfoSauer = sauer.filter(manglerOereNr)
+
+  const levendeSauerVisning = sorterEtterVillsau
+    ? [...levendeSauer].sort((a, b) => {
+        if (a.prosentVillsau == null && b.prosentVillsau == null) return 0
+        if (a.prosentVillsau == null) return 1
+        if (b.prosentVillsau == null) return -1
+        return b.prosentVillsau - a.prosentVillsau
+      })
+    : levendeSauer
 
   return (
     <main className={styles.page}>
@@ -1140,6 +1160,13 @@ function SauerPage() {
         </h1>
         <Button onClick={() => setLeggTilModalOpen(true)}>Legg til sau</Button>
       </Group>
+
+      <Switch
+        mb="1rem"
+        label="Sorter etter %-andel villsau"
+        checked={sorterEtterVillsau}
+        onChange={(event) => setSorterEtterVillsau(event.currentTarget.checked)}
+      />
 
       <LeggTilSauModal
         opened={leggTilModalOpen}
@@ -1163,8 +1190,14 @@ function SauerPage() {
 
       {!isLoading && levendeSauer.length > 0 && (
         <ul className={styles.list}>
-          {levendeSauer.map((sau) => (
-            <SauRad key={sau.id} sau={sau} alleSauer={sauer} alleVaerer={vaerer} />
+          {levendeSauerVisning.map((sau) => (
+            <SauRad
+              key={sau.id}
+              sau={sau}
+              alleSauer={sauer}
+              alleVaerer={vaerer}
+              visVillsauInfo={sorterEtterVillsau}
+            />
           ))}
         </ul>
       )}
