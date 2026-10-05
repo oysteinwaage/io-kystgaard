@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { Button, Select, Text } from '@mantine/core'
+import { Button, Select, Switch, Text } from '@mantine/core'
 import { useSauer } from '@/hooks/useSauer'
 import { useVaer } from '@/hooks/useVaer'
 import type { SauDoedsAarsak, SauMedId } from '@/types/sau'
@@ -31,6 +31,12 @@ interface EtterkommerNode {
   barn: EtterkommerNode[]
 }
 
+interface FullstendigIndivid {
+  ref: IndividRef
+  data: IndividData
+  generasjon: number
+}
+
 interface Linje {
   key: string
   x1: number
@@ -41,6 +47,13 @@ interface Linje {
 
 /** Trygg øvre grense på antall generasjoner vi følger bakover, i tilfelle feilregistrerte sirkler i dataene. */
 const MAKS_GENERASJONER = 10
+
+/**
+ * Trygg øvre grense på antall individer i "fullstendig slektstre"-modus. Siden værer ofte er
+ * far til lam fra mange ulike søyer, kan nettverket i teorien vokse seg stort (mot hele
+ * besetningen) – denne grensen hindrer at det løper løpsk på store/sammenvevde datasett.
+ */
+const MAKS_NODER_FULLSTENDIG = 300
 
 function noekkel(ref: IndividRef): string {
   return `${ref.kind}:${ref.id}`
@@ -172,6 +185,122 @@ function sorterBarn(a: SauMedId, b: SauMedId): number {
     return a.foedselsaar - b.foedselsaar
   }
   return (a.navn ?? a.oereNr ?? '').localeCompare(b.navn ?? b.oereNr ?? '', 'nb')
+}
+
+/**
+ * "Fullstendig slektstre": finner alle individer som er knyttet til `senter` via en
+ * foreldre/barn-lenke i en hvilken som helst retning – ikke bare den direkte linja, men også
+ * søsken (via mor), tanter/onkler, søskenbarn osv. Gjøres med et bredde-først-søk som går både
+ * oppover (til mor/far) og nedover (til alle barn) fra hvert individ vi besøker, og tildeler
+ * hvert individ en generasjon relativt til `senter` (0) for å kunne tegne dem i rader.
+ *
+ * Et unntak: en vær vi når ved å gå oppover til "far" vises, men hans andre lam populeres ikke
+ * videre som en sidegren (kun hvis væren selv er valgt som senter) – ellers ville en vær som er
+ * far til lam fra mange ulike søyer kunne dra inn store, urelaterte deler av besetningen.
+ * `MAKS_NODER_FULLSTENDIG` setter i tillegg en øvre grense på antall individer som en ekstra
+ * trygghetsmargin.
+ */
+function byggFullstendigNettverk(
+  senter: IndividRef,
+  sauerById: Map<string, SauMedId>,
+  vaererById: Map<string, VaerMedId>,
+  barnAvMor: Map<string, SauMedId[]>,
+  barnAvFar: Map<string, SauMedId[]>,
+): { individer: FullstendigIndivid[]; kanter: Array<{ oppe: string; nede: string }>; avkortet: boolean } {
+  function hentData(ref: IndividRef): IndividData | undefined {
+    return ref.kind === 'sau' ? sauerById.get(ref.id) : vaererById.get(ref.id)
+  }
+
+  const senterData = hentData(senter)
+  if (!senterData) return { individer: [], kanter: [], avkortet: false }
+
+  const individer = new Map<string, FullstendigIndivid>()
+  const kantNoekler = new Set<string>()
+  const kanter: Array<{ oppe: string; nede: string }> = []
+
+  function leggTilKant(foreldre: IndividRef, barn: IndividRef) {
+    const id = `${noekkel(foreldre)}->${noekkel(barn)}`
+    if (kantNoekler.has(id)) return
+    kantNoekler.add(id)
+    kanter.push({ oppe: noekkel(foreldre), nede: noekkel(barn) })
+  }
+
+  individer.set(noekkel(senter), { ref: senter, data: senterData, generasjon: 0 })
+  const koe: IndividRef[] = [senter]
+  let avkortet = false
+
+  for (let i = 0; i < koe.length; i++) {
+    if (individer.size >= MAKS_NODER_FULLSTENDIG) {
+      avkortet = true
+      break
+    }
+    const naa = koe[i]
+    const naaInfo = individer.get(noekkel(naa))!
+
+    if (naa.kind === 'sau') {
+      const sau = naaInfo.data as SauMedId
+      if (sau.barnAv) {
+        const morRef: IndividRef = { id: sau.barnAv, kind: 'sau' }
+        const morData = hentData(morRef)
+        if (morData) {
+          leggTilKant(morRef, naa)
+          if (!individer.has(noekkel(morRef))) {
+            individer.set(noekkel(morRef), { ref: morRef, data: morData, generasjon: naaInfo.generasjon - 1 })
+            koe.push(morRef)
+          }
+        }
+      }
+      if (sau.farAv) {
+        const farRef: IndividRef = { id: sau.farAv, kind: 'vaer' }
+        const farData = hentData(farRef)
+        if (farData) {
+          leggTilKant(farRef, naa)
+          if (!individer.has(noekkel(farRef))) {
+            individer.set(noekkel(farRef), { ref: farRef, data: farData, generasjon: naaInfo.generasjon - 1 })
+            koe.push(farRef)
+          }
+        }
+      }
+    }
+
+    // Barna til en vær utforskes kun når væren selv er valgt som senter. Når væren bare er
+    // "far" til et individ på vei oppover i treet, vises han, men de andre lammene hans (ofte
+    // fra mange andre, ellers urelaterte søyer) populeres ikke videre som en sidegren.
+    const skalUtforskeBarn = naa.kind === 'sau' || noekkel(naa) === noekkel(senter)
+    const barnListe = skalUtforskeBarn
+      ? naa.kind === 'sau'
+        ? barnAvMor.get(naa.id)
+        : barnAvFar.get(naa.id)
+      : undefined
+    if (barnListe) {
+      for (const b of barnListe) {
+        const barnRef: IndividRef = { id: b.id, kind: 'sau' }
+        leggTilKant(naa, barnRef)
+        if (!individer.has(noekkel(barnRef))) {
+          individer.set(noekkel(barnRef), { ref: barnRef, data: b, generasjon: naaInfo.generasjon + 1 })
+          koe.push(barnRef)
+        }
+      }
+    }
+  }
+
+  return { individer: Array.from(individer.values()), kanter, avkortet }
+}
+
+/** Grupperer søsken/halvsøsken ved siden av hverandre i generasjonsraden, for å gjøre et tett nettverk litt mer lesbart. */
+function sorterFullstendigRad(a: FullstendigIndivid, b: FullstendigIndivid): number {
+  const aSau = a.ref.kind === 'sau' ? (a.data as SauMedId) : null
+  const bSau = b.ref.kind === 'sau' ? (b.data as SauMedId) : null
+  const aMor = aSau?.barnAv ?? ''
+  const bMor = bSau?.barnAv ?? ''
+  if (aMor !== bMor) return aMor.localeCompare(bMor)
+  const aFar = aSau?.farAv ?? ''
+  const bFar = bSau?.farAv ?? ''
+  if (aFar !== bFar) return aFar.localeCompare(bFar)
+  if (aSau?.foedselsaar != null && bSau?.foedselsaar != null && aSau.foedselsaar !== bSau.foedselsaar) {
+    return aSau.foedselsaar - bSau.foedselsaar
+  }
+  return (a.data.navn ?? a.data.oereNr ?? '').localeCompare(b.data.navn ?? b.data.oereNr ?? '', 'nb')
 }
 
 const doedsStatusTekst: Record<SauDoedsAarsak, string> = {
@@ -313,13 +442,19 @@ interface SlektstreProps {
   vaerer: VaerMedId[]
   senter: IndividRef
   onVelg: (ref: IndividRef) => void
+  /**
+   * Av: viser kun direkte linje – forfedre (mor/far og bakover) over senter, og alle
+   * etterkommere av senter under. På: viser hele det sammenhengende slektsnettverket i alle
+   * retninger (også søsken, tanter/onkler, søskenbarn osv.), gruppert i generasjonsrader.
+   */
+  fullstendig: boolean
 }
 
 /**
  * Ren visningskomponent: tegner slektstreet for `senter` ut fra `sauer`/`vaerer`.
  * Tar data som props (ingen egen datahenting) slik at den er lett å bruke med testdata.
  */
-export function Slektstre({ sauer, vaerer, senter, onVelg }: SlektstreProps) {
+export function Slektstre({ sauer, vaerer, senter, onVelg, fullstendig }: SlektstreProps) {
   const { sauerById, vaererById, barnAvMor, barnAvFar } = useMemo(() => {
     const sauerById = new Map(sauer.map((s) => [s.id, s]))
     const vaererById = new Map(vaerer.map((v) => [v.id, v]))
@@ -346,6 +481,7 @@ export function Slektstre({ sauer, vaerer, senter, onVelg }: SlektstreProps) {
   )
 
   const etterkommerBarn = useMemo(() => {
+    if (fullstendig) return []
     const direkteBarn = senter.kind === 'sau' ? barnAvMor.get(senter.id) : barnAvFar.get(senter.id)
     if (!direkteBarn) return []
     const besokt = new Set([noekkel(senter)])
@@ -364,16 +500,34 @@ export function Slektstre({ sauer, vaerer, senter, onVelg }: SlektstreProps) {
         ),
       )
       .filter((node): node is EtterkommerNode => node != null)
-  }, [senter, sauerById, vaererById, barnAvMor, barnAvFar])
+  }, [fullstendig, senter, sauerById, vaererById, barnAvMor, barnAvFar])
+
+  const fullstendigNettverk = useMemo(() => {
+    if (!fullstendig) return null
+    return byggFullstendigNettverk(senter, sauerById, vaererById, barnAvMor, barnAvFar)
+  }, [fullstendig, senter, sauerById, vaererById, barnAvMor, barnAvFar])
+
+  const generasjonsRader = useMemo(() => {
+    if (!fullstendigNettverk) return []
+    const grupper = new Map<number, FullstendigIndivid[]>()
+    for (const individ of fullstendigNettverk.individer) {
+      const liste = grupper.get(individ.generasjon)
+      if (liste) liste.push(individ)
+      else grupper.set(individ.generasjon, [individ])
+    }
+    for (const liste of grupper.values()) liste.sort(sorterFullstendigRad)
+    return Array.from(grupper.entries()).sort(([a], [b]) => a - b)
+  }, [fullstendigNettverk])
 
   const kanter = useMemo(() => {
+    if (fullstendig) return fullstendigNettverk?.kanter ?? []
     const liste: Array<{ oppe: string; nede: string }> = []
     if (forfedreRoot) samleForfedreKanter(forfedreRoot, liste)
     for (const node of etterkommerBarn) {
       samleEtterkommerKanter(node, 'self', liste)
     }
     return liste
-  }, [forfedreRoot, etterkommerBarn])
+  }, [fullstendig, fullstendigNettverk, forfedreRoot, etterkommerBarn])
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -432,7 +586,8 @@ export function Slektstre({ sauer, vaerer, senter, onVelg }: SlektstreProps) {
    */
   useLayoutEffect(() => {
     const scrollEl = scrollRef.current
-    const selvEl = nodeRefs.current.get('self')
+    const senterSlot = fullstendig ? noekkel(senter) : 'self'
+    const selvEl = nodeRefs.current.get(senterSlot)
     if (!scrollEl || !selvEl) return
 
     const scrollRect = scrollEl.getBoundingClientRect()
@@ -445,7 +600,7 @@ export function Slektstre({ sauer, vaerer, senter, onVelg }: SlektstreProps) {
 
     scrollEl.scrollLeft = Math.max(0, Math.min(maalVenstre, scrollEl.scrollWidth - scrollEl.clientWidth))
     scrollEl.scrollTop = Math.max(0, Math.min(maalTopp, scrollEl.scrollHeight - scrollEl.clientHeight))
-  }, [senter])
+  }, [senter, fullstendig])
 
   if (!forfedreRoot) {
     return (
@@ -456,6 +611,7 @@ export function Slektstre({ sauer, vaerer, senter, onVelg }: SlektstreProps) {
   }
 
   return (
+    <>
     <div className={styles.treScroll} ref={scrollRef}>
       <div className={styles.treInnhold} ref={containerRef}>
         <svg className={styles.linjeLag}>
@@ -463,18 +619,48 @@ export function Slektstre({ sauer, vaerer, senter, onVelg }: SlektstreProps) {
             <line key={linje.key} x1={linje.x1} y1={linje.y1} x2={linje.x2} y2={linje.y2} />
           ))}
         </svg>
-        <ForfedreGren node={forfedreRoot} erSenter registrer={registrer} onVelg={onVelg} />
-        {etterkommerBarn.length > 0 && (
-          <div className={styles.barnRadWrapper}>
-            <div className={styles.barnRad}>
-              {etterkommerBarn.map((node) => (
-                <EtterkommerGren key={node.slot} node={node} registrer={registrer} onVelg={onVelg} />
-              ))}
-            </div>
+        {fullstendig ? (
+          <div className={styles.fullstendigContainer}>
+            {generasjonsRader.map(([generasjon, rad]) => (
+              <div key={generasjon} className={styles.generasjonsRad}>
+                {rad.map((individ) => {
+                  const erSenter = noekkel(individ.ref) === noekkel(senter)
+                  return (
+                    <NodeKort
+                      key={noekkel(individ.ref)}
+                      data={individ.data}
+                      kind={individ.ref.kind}
+                      erSenter={erSenter}
+                      registrerRef={(el) => registrer(noekkel(individ.ref), el)}
+                      onKlikk={erSenter ? undefined : () => onVelg(individ.ref)}
+                    />
+                  )
+                })}
+              </div>
+            ))}
           </div>
+        ) : (
+          <>
+            <ForfedreGren node={forfedreRoot} erSenter registrer={registrer} onVelg={onVelg} />
+            {etterkommerBarn.length > 0 && (
+              <div className={styles.barnRadWrapper}>
+                <div className={styles.barnRad}>
+                  {etterkommerBarn.map((node) => (
+                    <EtterkommerGren key={node.slot} node={node} registrer={registrer} onVelg={onVelg} />
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
+    {fullstendig && fullstendigNettverk?.avkortet && (
+      <p className={pageStyles.subtitle}>
+        Nettverket er stort og er begrenset til de {MAKS_NODER_FULLSTENDIG} første individene som ble funnet.
+      </p>
+    )}
+    </>
   )
 }
 
@@ -510,6 +696,7 @@ export function SlektstreSeksjon() {
 
   const [senter, setSenter] = useState<IndividRef | null>(null)
   const [historie, setHistorie] = useState<IndividRef[]>([])
+  const [fullstendig, setFullstendig] = useState(false)
 
   /**
    * Så lenge brukeren ikke selv har valgt noe, foreslår vi det nyeste individet med kjent
@@ -547,7 +734,10 @@ export function SlektstreSeksjon() {
         <Text size="sm" c="dimmed" mb="1rem">
           Velg en sau eller vær for å se slektstreet. Forfedre (mor/far og bakover) vises
           over, og alle etterkommere (barn, barnebarn osv.) vises under. Klikk på en boks
-          for å utforske slekten videre fra det individet.
+          for å utforske slekten videre fra det individet.{' '}
+          {fullstendig
+            ? 'Fullstendig slektstre viser nå hele det sammenhengende nettverket – også søsken, tanter/onkler og søskenbarn – gruppert i rader etter generasjon.'
+            : 'Skru på "Fullstendig slektstre" under for også å vise søsken, tanter/onkler og søskenbarn.'}
         </Text>
 
         <div className={styles.kontroller}>
@@ -572,6 +762,12 @@ export function SlektstreSeksjon() {
           >
             ← Tilbake
           </Button>
+          <Switch
+            className={styles.fullstendigBryter}
+            label="Fullstendig slektstre"
+            checked={fullstendig}
+            onChange={(event) => setFullstendig(event.currentTarget.checked)}
+          />
         </div>
       </div>
 
@@ -583,7 +779,13 @@ export function SlektstreSeksjon() {
       )}
 
       {!isLoading && !error && effektivSenter && (
-        <Slektstre sauer={sauer} vaerer={vaerer} senter={effektivSenter} onVelg={naviger} />
+        <Slektstre
+          sauer={sauer}
+          vaerer={vaerer}
+          senter={effektivSenter}
+          onVelg={naviger}
+          fullstendig={fullstendig}
+        />
       )}
 
       <div className={pageStyles.smalInnhold}>
