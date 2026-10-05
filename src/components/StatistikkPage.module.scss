@@ -1,0 +1,59 @@
+.page {
+  min-height: calc(100svh - 4rem);
+  max-width: 48rem;
+  margin: 0 auto;
+  padding: 2rem 1.5rem;
+}
+
+.title {
+  font-size: 1.75rem;
+  font-weight: 600;
+  margin: 0 0 1.5rem;
+}
+
+.section {
+  margin-bottom: 2rem;
+}
+
+.sectionTitle {
+  font-size: 1.125rem;
+  font-weight: 600;
+  margin: 0 0 1rem;
+}
+
+.subtitle {
+  color: var(--muted-foreground);
+  margin: 0 0 1.5rem;
+}
+
+.error {
+  color: var(--destructive);
+}
+
+.oereNr {
+  font-weight: 400;
+  color: var(--muted-foreground);
+}
+
+.paramCelle {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.paramVerdi {
+  font-weight: 600;
+}
+
+.paramUndertekst {
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+}
+
+.forklaring {
+  margin-top: 1.5rem;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--muted);
+}

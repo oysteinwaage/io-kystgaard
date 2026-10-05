@@ -8,6 +8,7 @@ import LoginPage from '@/components/LoginPage'
 import PendingApprovalPage from '@/components/PendingApprovalPage'
 import SauerPage from '@/components/SauerPage'
 import SlaktingPage from '@/components/SlaktingPage'
+import StatistikkPage from '@/components/StatistikkPage'
 import TopMenu, { type View } from '@/components/TopMenu'
 import VaerPage from '@/components/VaerPage'
 import { appRef, auth } from '@/lib/firebase'
@@ -81,6 +82,7 @@ function App() {
       {view === 'vaer' && <VaerPage />}
       {view === 'hjem' && <HjemPage />}
       {view === 'info' && <InfoPage />}
+      {view === 'statistikk' && <StatistikkPage />}
       {view === 'admin' && erAdmin && <AdminPage />}
     </div>
   )
