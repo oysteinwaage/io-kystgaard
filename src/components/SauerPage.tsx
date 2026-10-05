@@ -71,6 +71,10 @@ function jaNeiTilBool(verdi: string | null) {
   return null
 }
 
+function manglerForeldre(sau: Sau) {
+  return !sau.barnAv || !sau.farAv
+}
+
 const OERE_NR_MANGLER = 'xxx'
 
 function manglerOereNr(sau: Sau) {
@@ -302,6 +306,12 @@ function SauRad({
             visningsNavn(sau)
           )}
         </span>
+
+        {manglerForeldre(sau) && (
+          <span className={styles.manglerForeldre} title="Mangler mor og/eller far">
+            ⚠️ Mangler mor/far
+          </span>
+        )}
 
         {erDod && (
           <span
