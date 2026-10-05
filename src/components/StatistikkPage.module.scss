@@ -1,6 +1,6 @@
 .page {
   min-height: calc(100svh - 4rem);
-  max-width: 48rem;
+  max-width: 90rem;
   margin: 0 auto;
   padding: 2rem 1.5rem;
 }
@@ -19,6 +19,18 @@
   font-size: 1.125rem;
   font-weight: 600;
   margin: 0 0 1rem;
+}
+
+// Standard innholdsbredde, lik de andre sidene i appen (HjemPage, VaerPage, InfoPage).
+.smalInnhold {
+  max-width: 48rem;
+  margin: 0 auto;
+}
+
+.undertabellTitel {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0 0 0.5rem;
 }
 
 .subtitle {
@@ -43,11 +55,40 @@
 
 .paramVerdi {
   font-weight: 600;
+  white-space: nowrap;
 }
 
 .paramUndertekst {
   color: var(--muted-foreground);
   font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+// Mantine's <table> element always sets width: 100%, which stretches columns
+// with extra blank space instead of sizing them to their content. The
+// `table.` tag qualifier raises specificity above that single-class rule so
+// the table can shrink-to-fit instead.
+.tabellWrapper {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+// Som .tabellWrapper, men sentrerer tabellen (som har dynamisk, innholdsbasert
+// bredde) horisontalt på siden i stedet for å la den flyte til venstre.
+.tabellWrapperSentrert {
+  max-width: 100%;
+  overflow-x: auto;
+  display: flex;
+  justify-content: center;
+}
+
+table.tabellAuto {
+  width: auto;
+}
+
+.tabellAuto th,
+.tabellAuto td {
+  white-space: nowrap;
 }
 
 .forklaring {
