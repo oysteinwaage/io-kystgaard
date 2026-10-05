@@ -70,10 +70,11 @@
   pointer-events: none;
 }
 
+// Fargen settes pr. linje via "stroke"-attributtet i markup (ulik farge pr. forelder), så den
+// skal IKKE settes her – en CSS-regel for "stroke" ville overstyrt presentasjonsattributtet.
 .linjeLag line {
-  stroke: var(--muted-foreground);
-  stroke-width: 1.5;
-  opacity: 0.45;
+  stroke-width: 1.75;
+  opacity: 0.65;
 }
 
 .gren {
@@ -114,8 +115,16 @@
   flex-wrap: wrap;
   align-items: center;
   justify-content: center;
-  gap: 1rem 1.25rem;
+  // Større luft MELLOM familier enn INNAD i en familie (se .familieKlynge) – gir en enkel,
+  // rent avstandsbasert gruppering av søskenflokker i en ellers tett generasjonsrad.
+  gap: 1.25rem 2.25rem;
   padding: 1.25rem 0;
+}
+
+.familieKlynge {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
 }
 
 .generasjonsRad:not(:last-child) {

@@ -43,6 +43,7 @@ interface Linje {
   y1: number
   x2: number
   y2: number
+  farge: string
 }
 
 /** Trygg øvre grense på antall generasjoner vi følger bakover, i tilfelle feilregistrerte sirkler i dataene. */
@@ -57,6 +58,17 @@ const MAKS_NODER_FULLSTENDIG = 300
 
 function noekkel(ref: IndividRef): string {
   return `${ref.kind}:${ref.id}`
+}
+
+/**
+ * Gir hver "forelder" (individ som har minst én kobling ned til et barn) en egen, tydelig
+ * fargetone, slik at alle koblinger fra samme forelder har lik farge – og ingen to foreldre i
+ * samme tre får samme farge. Bruker det gylne vinkel-trikset (~137.5°) for å spre fargene
+ * jevnt rundt fargehjulet uansett hvor mange foreldre det er.
+ */
+function fargeForIndeks(indeks: number): string {
+  const hue = (indeks * 137.508) % 360
+  return `oklch(0.58 0.14 ${hue.toFixed(1)})`
 }
 
 /**
@@ -287,6 +299,12 @@ function byggFullstendigNettverk(
   return { individer: Array.from(individer.values()), kanter, avkortet }
 }
 
+/** Nøkkel som er lik for alle fullsøsken (samme mor OG far) – brukes til å sortere og gruppere dem sammen. */
+function familieNoekkel(individ: FullstendigIndivid): string {
+  const sau = individ.ref.kind === 'sau' ? (individ.data as SauMedId) : null
+  return `${sau?.barnAv ?? ''}|${sau?.farAv ?? ''}`
+}
+
 /** Grupperer søsken/halvsøsken ved siden av hverandre i generasjonsraden, for å gjøre et tett nettverk litt mer lesbart. */
 function sorterFullstendigRad(a: FullstendigIndivid, b: FullstendigIndivid): number {
   const aSau = a.ref.kind === 'sau' ? (a.data as SauMedId) : null
@@ -301,6 +319,23 @@ function sorterFullstendigRad(a: FullstendigIndivid, b: FullstendigIndivid): num
     return aSau.foedselsaar - bSau.foedselsaar
   }
   return (a.data.navn ?? a.data.oereNr ?? '').localeCompare(b.data.navn ?? b.data.oereNr ?? '', 'nb')
+}
+
+/** Deler en (allerede sortert) generasjonsrad opp i grupper av fullsøsken, for ekstra luft mellom familiene i raden. */
+function grupperIFamilier(rad: FullstendigIndivid[]): FullstendigIndivid[][] {
+  const klynger: FullstendigIndivid[][] = []
+  let gjeldendeNoekkel: string | null = null
+  for (const individ of rad) {
+    const noekkelForIndivid = familieNoekkel(individ)
+    const gjeldendeKlynge = klynger[klynger.length - 1]
+    if (gjeldendeKlynge && noekkelForIndivid === gjeldendeNoekkel) {
+      gjeldendeKlynge.push(individ)
+    } else {
+      klynger.push([individ])
+      gjeldendeNoekkel = noekkelForIndivid
+    }
+  }
+  return klynger
 }
 
 const doedsStatusTekst: Record<SauDoedsAarsak, string> = {
@@ -516,7 +551,9 @@ export function Slektstre({ sauer, vaerer, senter, onVelg, fullstendig }: Slekts
       else grupper.set(individ.generasjon, [individ])
     }
     for (const liste of grupper.values()) liste.sort(sorterFullstendigRad)
-    return Array.from(grupper.entries()).sort(([a], [b]) => a - b)
+    return Array.from(grupper.entries())
+      .sort(([a], [b]) => a - b)
+      .map(([generasjon, rad]): [number, FullstendigIndivid[][]] => [generasjon, grupperIFamilier(rad)])
   }, [fullstendigNettverk])
 
   const kanter = useMemo(() => {
@@ -528,6 +565,15 @@ export function Slektstre({ sauer, vaerer, senter, onVelg, fullstendig }: Slekts
     }
     return liste
   }, [fullstendig, fullstendigNettverk, forfedreRoot, etterkommerBarn])
+
+  /** Hver unike "oppe" (forelder) i `kanter` får sin egen farge, tildelt i rekkefølgen de dukker opp. */
+  const oppeFarger = useMemo(() => {
+    const farger = new Map<string, string>()
+    for (const kant of kanter) {
+      if (!farger.has(kant.oppe)) farger.set(kant.oppe, fargeForIndeks(farger.size))
+    }
+    return farger
+  }, [kanter])
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -558,10 +604,11 @@ export function Slektstre({ sauer, vaerer, senter, onVelg, fullstendig }: Slekts
         y1: oppeRect.bottom - containerRect.top,
         x2: nedeRect.left + nedeRect.width / 2 - containerRect.left,
         y2: nedeRect.top - containerRect.top,
+        farge: oppeFarger.get(kant.oppe) ?? 'var(--muted-foreground)',
       })
     }
     setLinjer(nyeLinjer)
-  }, [kanter])
+  }, [kanter, oppeFarger])
 
   useLayoutEffect(() => {
     beregnLinjer()
@@ -616,26 +663,37 @@ export function Slektstre({ sauer, vaerer, senter, onVelg, fullstendig }: Slekts
       <div className={styles.treInnhold} ref={containerRef}>
         <svg className={styles.linjeLag}>
           {linjer.map((linje) => (
-            <line key={linje.key} x1={linje.x1} y1={linje.y1} x2={linje.x2} y2={linje.y2} />
+            <line
+              key={linje.key}
+              x1={linje.x1}
+              y1={linje.y1}
+              x2={linje.x2}
+              y2={linje.y2}
+              stroke={linje.farge}
+            />
           ))}
         </svg>
         {fullstendig ? (
           <div className={styles.fullstendigContainer}>
-            {generasjonsRader.map(([generasjon, rad]) => (
+            {generasjonsRader.map(([generasjon, klynger]) => (
               <div key={generasjon} className={styles.generasjonsRad}>
-                {rad.map((individ) => {
-                  const erSenter = noekkel(individ.ref) === noekkel(senter)
-                  return (
-                    <NodeKort
-                      key={noekkel(individ.ref)}
-                      data={individ.data}
-                      kind={individ.ref.kind}
-                      erSenter={erSenter}
-                      registrerRef={(el) => registrer(noekkel(individ.ref), el)}
-                      onKlikk={erSenter ? undefined : () => onVelg(individ.ref)}
-                    />
-                  )
-                })}
+                {klynger.map((klynge) => (
+                  <div key={klynge[0]!.ref.id} className={styles.familieKlynge}>
+                    {klynge.map((individ) => {
+                      const erSenter = noekkel(individ.ref) === noekkel(senter)
+                      return (
+                        <NodeKort
+                          key={noekkel(individ.ref)}
+                          data={individ.data}
+                          kind={individ.ref.kind}
+                          erSenter={erSenter}
+                          registrerRef={(el) => registrer(noekkel(individ.ref), el)}
+                          onKlikk={erSenter ? undefined : () => onVelg(individ.ref)}
+                        />
+                      )
+                    })}
+                  </div>
+                ))}
               </div>
             ))}
           </div>
