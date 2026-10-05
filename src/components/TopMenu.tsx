@@ -14,11 +14,11 @@ interface TopMenuProps {
 
 const navItems: { view: View; label: string }[] = [
   { view: 'hjem', label: 'Hjem' },
+  { view: 'statistikk', label: 'Statistikk' },
   { view: 'sauer', label: 'Sauer' },
   { view: 'slakting', label: 'Slakting' },
   { view: 'vaer', label: 'Værer' },
   { view: 'info', label: 'Info og dokumenter' },
-  { view: 'statistikk', label: 'Statistikk' },
 ]
 
 function TopMenu({ activeView, onNavigate, erAdmin }: TopMenuProps) {
@@ -37,10 +37,14 @@ function TopMenu({ activeView, onNavigate, erAdmin }: TopMenuProps) {
 
   return (
     <header className={styles.bar}>
-      <div className={styles.brand}>
+      <button
+        type="button"
+        className={styles.brand}
+        onClick={() => handleNavigate('hjem')}
+      >
         <img src="/logo.png" alt="Lynghaugen Gard" className={styles.logo} />
         <span className={styles.name}>Lynghaugen Gard</span>
-      </div>
+      </button>
 
       <nav className={styles.nav}>
         {items.map((item) => (

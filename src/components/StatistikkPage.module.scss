@@ -57,3 +57,92 @@
   border-radius: var(--radius-lg);
   background: var(--muted);
 }
+
+.lammingHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.lammingHeader .sectionTitle {
+  margin: 0;
+}
+
+.aarVelger {
+  width: 8rem;
+}
+
+.statGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: 0.75rem;
+}
+
+.statCard {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+}
+
+.statLabel {
+  color: var(--muted-foreground);
+  font-size: 0.8125rem;
+}
+
+.statValue {
+  font-size: 1.75rem;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.statValueDod {
+  color: var(--destructive);
+}
+
+.statValueSolgt {
+  color: oklch(0.35 0.12 145);
+}
+
+.slaktCard {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.slaktCardHalf {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.slaktCardDivider {
+  align-self: stretch;
+  width: 1px;
+  background: var(--border);
+}
+
+.slaktLabel {
+  color: var(--muted-foreground);
+  font-size: 0.6875rem;
+  line-height: 1.1;
+}
+
+.slaktValue {
+  font-size: 1.1rem;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.slaktSubvalue {
+  color: var(--muted-foreground);
+  font-size: 0.625rem;
+  line-height: 1;
+}

@@ -5,98 +5,56 @@
   padding: 2rem 1.5rem;
 }
 
-.header {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 1.5rem;
-}
-
 .title {
   font-size: 1.75rem;
   font-weight: 600;
   margin: 0;
 }
 
-.aarVelger {
-  width: 8rem;
-}
-
 .subtitle {
   color: var(--muted-foreground);
+  margin: 0.25rem 0 1.5rem;
 }
 
-.statGrid {
+.kortGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
-  gap: 0.75rem;
-  margin-bottom: 1.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 1rem;
 }
 
-.statCard {
+.kort {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
-  padding: 1rem;
+  align-items: flex-start;
+  gap: 0.375rem;
+  padding: 1.25rem;
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   background: var(--card);
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
 }
 
-.statLabel {
+.kort:hover {
+  border-color: var(--primary);
+  background: var(--muted);
+}
+
+.kortIkon {
+  font-size: 1.75rem;
+  line-height: 1;
+  margin-bottom: 0.25rem;
+}
+
+.kortTittel {
+  font-weight: 600;
+  font-size: 1.0625rem;
+}
+
+.kortBeskrivelse {
   color: var(--muted-foreground);
   font-size: 0.8125rem;
-}
-
-.statValue {
-  font-size: 1.75rem;
-  font-weight: 600;
-  line-height: 1;
-}
-
-.statValueDod {
-  color: var(--destructive);
-}
-
-.statValueSolgt {
-  color: oklch(0.35 0.12 145);
-}
-
-.slaktCard {
-  flex-direction: row;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.slaktCardHalf {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  min-width: 0;
-}
-
-.slaktCardDivider {
-  align-self: stretch;
-  width: 1px;
-  background: var(--border);
-}
-
-.slaktLabel {
-  color: var(--muted-foreground);
-  font-size: 0.6875rem;
-  line-height: 1.1;
-}
-
-.slaktValue {
-  font-size: 1.1rem;
-  font-weight: 600;
-  line-height: 1;
-}
-
-.slaktSubvalue {
-  color: var(--muted-foreground);
-  font-size: 0.625rem;
-  line-height: 1;
 }

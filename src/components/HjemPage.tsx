@@ -1,145 +1,82 @@
-import { useMemo, useState } from 'react'
-import { Select } from '@mantine/core'
-import { useSauer } from '@/hooks/useSauer'
-import { europKodeForTallverdi, europSnittverdi } from '@/lib/europ'
-import type { SauDoedsAarsak } from '@/types/sau'
+import type { View } from '@/components/TopMenu'
 import styles from './HjemPage.module.scss'
 
-const doedsAarsakLabel: Record<Exclude<SauDoedsAarsak, 'solgt'>, string> = {
-  sykdom: 'Sykdom',
-  slakt: 'Slakt',
-  forsvunnet: 'Forsvunnet',
+interface HjemKort {
+  view: View
+  ikon: string
+  tittel: string
+  beskrivelse: string
 }
 
-const forsteAar = 2010
-const sisteAar = new Date().getFullYear()
-const aarOptions = Array.from({ length: sisteAar - forsteAar + 1 }, (_, i) =>
-  String(sisteAar - i),
-)
+const kort: HjemKort[] = [
+  {
+    view: 'statistikk',
+    ikon: '📊',
+    tittel: 'Statistikk',
+    beskrivelse: 'Lammetall, slaktestatistikk og slektskap.',
+  },
+  {
+    view: 'sauer',
+    ikon: '🐑',
+    tittel: 'Sauer',
+    beskrivelse: 'Full oversikt over flokken – registrer fødsler, dødsfall og detaljer.',
+  },
+  {
+    view: 'slakting',
+    ikon: '🥩',
+    tittel: 'Slakting',
+    beskrivelse: 'Planlegg og registrer slaktinger av dyr.',
+  },
+  {
+    view: 'vaer',
+    ikon: '🐏',
+    tittel: 'Værer',
+    beskrivelse: 'Oversikt over værene og hvilke som er brukt til paring.',
+  },
+  {
+    view: 'info',
+    ikon: '📄',
+    tittel: 'Info og dokumenter',
+    beskrivelse: 'Nyttig informasjon og dokumenter om drifta.',
+  },
+]
 
-function StatCard({
-  label,
-  value,
-  variant,
-}: {
-  label: string
-  value: number
-  variant?: 'dod' | 'solgt'
-}) {
-  const variantClass =
-    variant === 'dod' ? styles.statValueDod : variant === 'solgt' ? styles.statValueSolgt : ''
-  return (
-    <div className={styles.statCard}>
-      <span className={styles.statLabel}>{label}</span>
-      <span className={`${styles.statValue} ${variantClass}`}>{value}</span>
-    </div>
-  )
+const adminKort: HjemKort = {
+  view: 'admin',
+  ikon: '🛠️',
+  tittel: 'Admin',
+  beskrivelse: 'Godkjenn brukere og administrer tilganger.',
 }
 
-function SlaktStatCard({
-  antall,
-  snittverdi,
-}: {
-  antall: number
-  snittverdi: number | null
-}) {
-  return (
-    <div className={`${styles.statCard} ${styles.slaktCard}`}>
-      <div className={styles.slaktCardHalf}>
-        <span className={styles.slaktLabel}>Slakt</span>
-        <span className={`${styles.slaktValue} ${styles.statValueDod}`}>{antall}</span>
-      </div>
-      <div className={styles.slaktCardDivider} />
-      <div className={styles.slaktCardHalf}>
-        <span className={styles.slaktLabel}>Snittkategori</span>
-        <span className={styles.slaktValue}>
-          {snittverdi != null ? europKodeForTallverdi(snittverdi) : '–'}
-        </span>
-        {snittverdi != null && (
-          <span className={styles.slaktSubvalue}>{snittverdi.toFixed(1)}</span>
-        )}
-      </div>
-    </div>
-  )
+interface HjemPageProps {
+  onNavigate: (view: View) => void
+  erAdmin: boolean
 }
 
-function HjemPage() {
-  const { sauer, isLoading, error } = useSauer()
-  const [valgtAar, setValgtAar] = useState<string>(String(sisteAar))
-
-  const lam = useMemo(
-    () => sauer.filter((sau) => sau.foedselsaar === Number(valgtAar)),
-    [sauer, valgtAar],
-  )
-
-  const hannlam = lam.filter((sau) => sau.kjoenn === 'HANN').length
-  const hunnlam = lam.filter((sau) => sau.kjoenn === 'HUNN').length
-  const solgte = lam.filter((sau) => sau.doedsAarsak === 'solgt')
-  const doede = lam.filter((sau) => !!sau.doedsAarsak && sau.doedsAarsak !== 'solgt')
-  const levende = lam.length - doede.length - solgte.length
-
-  const doedsAarsakTelling: Record<Exclude<SauDoedsAarsak, 'solgt'>, number> = {
-    sykdom: doede.filter((sau) => sau.doedsAarsak === 'sykdom').length,
-    slakt: doede.filter((sau) => sau.doedsAarsak === 'slakt').length,
-    forsvunnet: doede.filter((sau) => sau.doedsAarsak === 'forsvunnet').length,
-  }
-
-  const slaktet = doede.filter((sau) => sau.doedsAarsak === 'slakt')
-  const slaktSnittverdi = europSnittverdi(slaktet.map((sau) => sau.slaktKategori))
+function HjemPage({ onNavigate, erAdmin }: HjemPageProps) {
+  const alleKort = erAdmin ? [...kort, adminKort] : kort
 
   return (
     <main className={styles.page}>
-      <div className={styles.header}>
-        <h1 className={styles.title}>Hjem</h1>
-        <Select
-          className={styles.aarVelger}
-          label="Lam født i"
-          data={aarOptions}
-          value={valgtAar}
-          onChange={(verdi) => setValgtAar(verdi ?? String(sisteAar))}
-          allowDeselect={false}
-          searchable
-        />
+      <h1 className={styles.title}>Hjem</h1>
+      <p className={styles.subtitle}>Velg hvor du vil gå.</p>
+
+      <div className={styles.kortGrid}>
+        {alleKort.map((k) => (
+          <button
+            key={k.view}
+            type="button"
+            className={styles.kort}
+            onClick={() => onNavigate(k.view)}
+          >
+            <span className={styles.kortIkon} aria-hidden="true">
+              {k.ikon}
+            </span>
+            <span className={styles.kortTittel}>{k.tittel}</span>
+            <span className={styles.kortBeskrivelse}>{k.beskrivelse}</span>
+          </button>
+        ))}
       </div>
-
-      {isLoading && <p className={styles.subtitle}>Laster sauer…</p>}
-      {error && <p className={styles.subtitle}>{error}</p>}
-
-      {!isLoading && !error && lam.length === 0 && (
-        <p className={styles.subtitle}>Ingen lam registrert for {valgtAar}.</p>
-      )}
-
-      {!isLoading && !error && lam.length > 0 && (
-        <div className={styles.statGrid}>
-          <StatCard label={`Lam i ${valgtAar}`} value={lam.length} />
-          <StatCard label="♂ Værlam" value={hannlam} />
-          <StatCard label="♀ Søye" value={hunnlam} />
-          <StatCard label="Levende" value={levende} />
-          <StatCard
-            label="Solgt"
-            value={solgte.length}
-            variant={solgte.length > 0 ? 'solgt' : undefined}
-          />
-          {(Object.keys(doedsAarsakLabel) as Exclude<SauDoedsAarsak, 'solgt'>[])
-            .filter((aarsak) => doedsAarsakTelling[aarsak] > 0)
-            .map((aarsak) =>
-              aarsak === 'slakt' ? (
-                <SlaktStatCard
-                  key={aarsak}
-                  antall={doedsAarsakTelling.slakt}
-                  snittverdi={slaktSnittverdi}
-                />
-              ) : (
-                <StatCard
-                  key={aarsak}
-                  label={doedsAarsakLabel[aarsak]}
-                  value={doedsAarsakTelling[aarsak]}
-                  variant="dod"
-                />
-              ),
-            )}
-        </div>
-      )}
     </main>
   )
 }

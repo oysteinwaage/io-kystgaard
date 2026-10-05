@@ -80,7 +80,7 @@ function App() {
       {view === 'sauer' && <SauerPage />}
       {view === 'slakting' && <SlaktingPage />}
       {view === 'vaer' && <VaerPage />}
-      {view === 'hjem' && <HjemPage />}
+      {view === 'hjem' && <HjemPage onNavigate={setView} erAdmin={erAdmin} />}
       {view === 'info' && <InfoPage />}
       {view === 'statistikk' && <StatistikkPage />}
       {view === 'admin' && erAdmin && <AdminPage />}
