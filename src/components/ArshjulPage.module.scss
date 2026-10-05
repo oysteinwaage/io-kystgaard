@@ -1,0 +1,136 @@
+.page {
+  min-height: calc(100svh - 4rem);
+  max-width: 48rem;
+  margin: 0 auto;
+  padding: 2rem 1.5rem;
+}
+
+.title {
+  font-size: 1.75rem;
+  font-weight: 600;
+  margin: 0 0 1.5rem;
+}
+
+.subtitle {
+  color: var(--muted-foreground);
+  margin: 0 0 1.5rem;
+}
+
+.error {
+  color: var(--destructive);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.item {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  overflow: hidden;
+}
+
+.itemDone {
+  background: oklch(0.93 0.045 150);
+  border-color: oklch(0.8 0.07 150);
+}
+
+.itemOverdue {
+  background: oklch(0.93 0.045 25);
+  border-color: oklch(0.8 0.08 25);
+}
+
+.itemHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.875rem 1rem;
+}
+
+.itemHeaderKnapp {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  padding: 0;
+}
+
+.dato {
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted-foreground);
+  font-size: 0.875rem;
+  min-width: 5.5rem;
+}
+
+.itemName {
+  flex: 1;
+  font-weight: 600;
+}
+
+.periode {
+  font-weight: 400;
+  color: var(--muted-foreground);
+}
+
+.statusTekst {
+  flex-shrink: 0;
+  color: var(--muted-foreground);
+  font-size: 0.8125rem;
+}
+
+.chevron {
+  color: var(--muted-foreground);
+  transition: transform 0.15s;
+}
+
+.chevronOpen {
+  transform: rotate(180deg);
+}
+
+.itemBody {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 0 1rem 1.25rem;
+  border-top: 1px solid var(--border);
+  padding-top: 1rem;
+}
+
+.itemBodyHeader {
+  display: flex;
+  justify-content: space-between;
+}
+
+.form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: 0.75rem;
+}
+
+.laastFelt {
+  --input-disabled-color: oklch(0.08 0 0);
+}
+
+.laastFelt input:disabled,
+.laastFelt input[data-disabled] {
+  opacity: 1;
+  font-weight: 500;
+}
+
+.kommentar {
+  width: 100%;
+}

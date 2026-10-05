@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { onAuthStateChanged, type User } from 'firebase/auth'
 import { onValue, runTransaction } from 'firebase/database'
 import AdminPage from '@/components/AdminPage'
+import ArshjulPage from '@/components/ArshjulPage'
 import HjemPage from '@/components/HjemPage'
 import InfoPage from '@/components/InfoPage'
 import LoginPage from '@/components/LoginPage'
@@ -80,6 +81,7 @@ function App() {
       {view === 'sauer' && <SauerPage />}
       {view === 'slakting' && <SlaktingPage />}
       {view === 'vaer' && <VaerPage />}
+      {view === 'arshjul' && <ArshjulPage />}
       {view === 'hjem' && <HjemPage onNavigate={setView} erAdmin={erAdmin} />}
       {view === 'info' && <InfoPage />}
       {view === 'statistikk' && <StatistikkPage />}

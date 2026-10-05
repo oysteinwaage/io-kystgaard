@@ -34,6 +34,12 @@ const kort: HjemKort[] = [
     beskrivelse: 'Oversikt over værene og hvilke som er brukt til paring.',
   },
   {
+    view: 'arshjul',
+    ikon: '🗓️',
+    tittel: 'Årshjul',
+    beskrivelse: 'Faste oppgaver gjennom driftsåret, med avhaking og frister.',
+  },
+  {
     view: 'info',
     ikon: '📄',
     tittel: 'Info og dokumenter',
