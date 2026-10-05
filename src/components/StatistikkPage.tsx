@@ -34,6 +34,14 @@ const slaktParamLabel: Record<SlaktParam, string> = {
   slaktevektTotal: 'Slaktevekt totalt',
 }
 
+/** Alle slakt-parametrene er "høyere er bedre" – ingen av dem skal inverteres. */
+const slaktParamLavestErBest: Record<SlaktParam, boolean> = {
+  slaktKategori: false,
+  slaktPris: false,
+  slaktevekt: false,
+  slaktevektTotal: false,
+}
+
 interface ParamStat {
   snitt: number | null
   antall: number
@@ -59,6 +67,58 @@ function gjennomsnitt(verdier: number[]): number | null {
 function sum(verdier: number[]): number | null {
   if (verdier.length === 0) return null
   return verdier.reduce((sum, verdi) => sum + verdi, 0)
+}
+
+/**
+ * Generisk rangeringsberegning, brukt av Lamming-, Slakting- og Beste søye-tabellene:
+ * for hver avhuket parameter normaliseres snittverdien til en skala fra 0 til 1 (ut fra
+ * laveste/høyeste verdi blant alle rader), eventuelt invertert for parametre der lavest
+ * er best. Poengsummen (0–100) er gjennomsnittet av de normaliserte verdiene. Rader uten
+ * noen gyldig verdi for de avhukede parametrene utelates.
+ */
+function beregnRangering<P extends string, T extends { mor: SauMedId } & Record<P, { snitt: number | null }>>(
+  statistikker: T[],
+  aktiveParametre: P[],
+  lavestErBest: Record<P, boolean>,
+): Array<T & { poengsum: number; antallGrunnlag: number }> {
+  if (aktiveParametre.length === 0) return []
+
+  const minMaxPerParam = new Map<P, { min: number; max: number }>()
+  for (const param of aktiveParametre) {
+    const verdier = statistikker
+      .map((rad) => rad[param].snitt)
+      .filter((verdi): verdi is number => verdi != null)
+    if (verdier.length > 0) {
+      minMaxPerParam.set(param, { min: Math.min(...verdier), max: Math.max(...verdier) })
+    }
+  }
+
+  return statistikker
+    .map((rad) => {
+      let antallGrunnlag = 0
+      const normaliserteVerdier: number[] = []
+
+      for (const param of aktiveParametre) {
+        const snitt = rad[param].snitt
+        const grenser = minMaxPerParam.get(param)
+        if (snitt == null || !grenser) continue
+
+        antallGrunnlag += 1
+        const rawNormalisert =
+          grenser.max === grenser.min ? 1 : (snitt - grenser.min) / (grenser.max - grenser.min)
+        normaliserteVerdier.push(lavestErBest[param] ? 1 - rawNormalisert : rawNormalisert)
+      }
+
+      if (normaliserteVerdier.length === 0) return null
+
+      const poengsum =
+        (normaliserteVerdier.reduce((sum, verdi) => sum + verdi, 0) / normaliserteVerdier.length) *
+        100
+
+      return { ...rad, poengsum, antallGrunnlag }
+    })
+    .filter((rad): rad is T & { poengsum: number; antallGrunnlag: number } => rad != null)
+    .sort((a, b) => b.poengsum - a.poengsum)
 }
 
 function beregnMorStatistikk(mor: SauMedId, barn: SauMedId[]): MorSlaktStatistikk {
@@ -310,46 +370,10 @@ function LamPrSoyeTabell({
       .filter((rad): rad is MorLamStatistikk => rad != null)
   }, [sauer])
 
-  const rangerteMoedre = useMemo<RangertMorLam[]>(() => {
-    if (aktiveParametre.length === 0) return []
-
-    const minMaxPerParam: Partial<Record<LamParam, { min: number; max: number }>> = {}
-    for (const param of aktiveParametre) {
-      const verdier = alleMorStatistikker
-        .map((rad) => rad[param].snitt)
-        .filter((verdi): verdi is number => verdi != null)
-      if (verdier.length > 0) {
-        minMaxPerParam[param] = { min: Math.min(...verdier), max: Math.max(...verdier) }
-      }
-    }
-
-    return alleMorStatistikker
-      .map((rad) => {
-        const normaliserteVerdier = aktiveParametre
-          .map((param) => {
-            const snitt = rad[param].snitt
-            const grenser = minMaxPerParam[param]
-            if (snitt == null || !grenser) return null
-            const rawNormalisert =
-              grenser.max === grenser.min
-                ? 1
-                : (snitt - grenser.min) / (grenser.max - grenser.min)
-            return lamParamLavestErBest[param] ? 1 - rawNormalisert : rawNormalisert
-          })
-          .filter((verdi): verdi is number => verdi != null)
-
-        if (normaliserteVerdier.length === 0) return null
-
-        const poengsum =
-          (normaliserteVerdier.reduce((sum, verdi) => sum + verdi, 0) /
-            normaliserteVerdier.length) *
-          100
-
-        return { ...rad, poengsum }
-      })
-      .filter((rad): rad is RangertMorLam => rad != null)
-      .sort((a, b) => b.poengsum - a.poengsum)
-  }, [alleMorStatistikker, aktiveParametre])
+  const rangerteMoedre = useMemo<RangertMorLam[]>(
+    () => beregnRangering(alleMorStatistikker, aktiveParametre, lamParamLavestErBest),
+    [alleMorStatistikker, aktiveParametre],
+  )
 
   function vekslParam(param: LamParam) {
     setValgteParametre((forrige) => ({ ...forrige, [param]: !forrige[param] }))
@@ -609,43 +633,10 @@ function SlaktingSeksjon() {
       .filter((rad): rad is MorSlaktStatistikk => rad != null)
   }, [sauer])
 
-  const rangerteMoedre = useMemo<RangertMor[]>(() => {
-    if (aktiveParametre.length === 0) return []
-
-    const minMaxPerParam: Partial<Record<SlaktParam, { min: number; max: number }>> = {}
-    for (const param of aktiveParametre) {
-      const verdier = alleMorStatistikker
-        .map((rad) => rad[param].snitt)
-        .filter((verdi): verdi is number => verdi != null)
-      if (verdier.length > 0) {
-        minMaxPerParam[param] = { min: Math.min(...verdier), max: Math.max(...verdier) }
-      }
-    }
-
-    return alleMorStatistikker
-      .map((rad) => {
-        const normaliserteVerdier = aktiveParametre
-          .map((param) => {
-            const snitt = rad[param].snitt
-            const grenser = minMaxPerParam[param]
-            if (snitt == null || !grenser) return null
-            if (grenser.max === grenser.min) return 1
-            return (snitt - grenser.min) / (grenser.max - grenser.min)
-          })
-          .filter((verdi): verdi is number => verdi != null)
-
-        if (normaliserteVerdier.length === 0) return null
-
-        const poengsum =
-          (normaliserteVerdier.reduce((sum, verdi) => sum + verdi, 0) /
-            normaliserteVerdier.length) *
-          100
-
-        return { ...rad, poengsum }
-      })
-      .filter((rad): rad is RangertMor => rad != null)
-      .sort((a, b) => b.poengsum - a.poengsum)
-  }, [alleMorStatistikker, aktiveParametre])
+  const rangerteMoedre = useMemo<RangertMor[]>(
+    () => beregnRangering(alleMorStatistikker, aktiveParametre, slaktParamLavestErBest),
+    [alleMorStatistikker, aktiveParametre],
+  )
 
   function vekslParam(param: SlaktParam) {
     setValgteParametre((forrige) => ({ ...forrige, [param]: !forrige[param] }))
@@ -772,6 +763,232 @@ function SlaktingSeksjon() {
   )
 }
 
+type BestSoyeParam = 'lamming' | 'slakting'
+
+const bestSoyeParametre: BestSoyeParam[] = ['lamming', 'slakting']
+
+const bestSoyeParamLabel: Record<BestSoyeParam, string> = {
+  lamming: 'Lamming',
+  slakting: 'Slakting',
+}
+
+/** Begge delscorene er "høyere er bedre" – ingen av dem skal inverteres. */
+const bestSoyeLavestErBest: Record<BestSoyeParam, boolean> = {
+  lamming: false,
+  slakting: false,
+}
+
+const bestSoyeAntallLabel: Record<BestSoyeParam, (antall: number) => string> = {
+  lamming: (antall) => `${antall}/${lamParametre.length} parametre`,
+  slakting: (antall) => `${antall}/${slaktParametre.length} parametre`,
+}
+
+interface BestSoyeParamStat {
+  snitt: number | null
+  antall: number
+}
+
+interface MorBestSoyeStatistikk {
+  mor: SauMedId
+  lamming: BestSoyeParamStat
+  slakting: BestSoyeParamStat
+}
+
+interface RangertMorBestSoye extends MorBestSoyeStatistikk {
+  poengsum: number
+}
+
+function formatterBestSoyeParamverdi(snitt: number): string {
+  return `${snitt.toFixed(0)}/100`
+}
+
+function BestSoyeSeksjon() {
+  const { sauer, isLoading, error } = useSauer()
+  const [valgteParametre, setValgteParametre] = useState<Record<BestSoyeParam, boolean>>({
+    lamming: true,
+    slakting: true,
+  })
+
+  const aktiveParametre = bestSoyeParametre.filter((param) => valgteParametre[param])
+
+  const alleMorStatistikker = useMemo<MorBestSoyeStatistikk[]>(() => {
+    const morIder = new Set(sauer.map((sau) => sau.barnAv).filter((id): id is string => !!id))
+    const moedre = Array.from(morIder)
+      .map((morId) => sauer.find((sau) => sau.id === morId))
+      .filter((mor): mor is SauMedId => !!mor)
+
+    const lamStatistikker = moedre.map((mor) =>
+      beregnMorLamStatistikk(mor, sauer.filter((sau) => sau.barnAv === mor.id)),
+    )
+    const lammingResultater = beregnRangering(lamStatistikker, lamParametre, lamParamLavestErBest)
+    const lammingMap = new Map(
+      lammingResultater.map((rad) => [
+        rad.mor.id,
+        { snitt: rad.poengsum, antall: rad.antallGrunnlag },
+      ]),
+    )
+
+    const slaktStatistikker = moedre.map((mor) =>
+      beregnMorStatistikk(mor, sauer.filter((sau) => sau.barnAv === mor.id)),
+    )
+    const slaktingResultater = beregnRangering(
+      slaktStatistikker,
+      slaktParametre,
+      slaktParamLavestErBest,
+    )
+    const slaktingMap = new Map(
+      slaktingResultater.map((rad) => [
+        rad.mor.id,
+        { snitt: rad.poengsum, antall: rad.antallGrunnlag },
+      ]),
+    )
+
+    return moedre.map((mor) => ({
+      mor,
+      lamming: lammingMap.get(mor.id) ?? { snitt: null, antall: 0 },
+      slakting: slaktingMap.get(mor.id) ?? { snitt: null, antall: 0 },
+    }))
+  }, [sauer])
+
+  const rangerteMoedre = useMemo<RangertMorBestSoye[]>(
+    () => beregnRangering(alleMorStatistikker, aktiveParametre, bestSoyeLavestErBest),
+    [alleMorStatistikker, aktiveParametre],
+  )
+
+  function vekslParam(param: BestSoyeParam) {
+    setValgteParametre((forrige) => ({ ...forrige, [param]: !forrige[param] }))
+  }
+
+  return (
+    <section className={styles.section}>
+      <div className={styles.smalInnhold}>
+        <h2 className={styles.sectionTitle}>Beste søye</h2>
+        <Text size="sm" c="dimmed" mb="1rem">
+          Søyer rangert etter en samlet poengsum fra Lamming- og Slakting-beregningene,
+          basert på parametrene valgt under, fra best til verst.
+        </Text>
+
+        <Group mb="1.25rem" gap="1.25rem">
+          {bestSoyeParametre.map((param) => (
+            <Checkbox
+              key={param}
+              label={bestSoyeParamLabel[param]}
+              checked={valgteParametre[param]}
+              onChange={() => vekslParam(param)}
+            />
+          ))}
+        </Group>
+      </div>
+
+      {isLoading && <p className={styles.subtitle}>Laster sauer…</p>}
+      {error && <p className={styles.error}>{error}</p>}
+
+      {!isLoading && !error && aktiveParametre.length === 0 && (
+        <p className={styles.subtitle}>Velg minst én parameter for å se rangering.</p>
+      )}
+
+      {!isLoading && !error && aktiveParametre.length > 0 && rangerteMoedre.length === 0 && (
+        <p className={styles.subtitle}>
+          Ingen søyer har en beregnet poengsum for valgte parametre ennå.
+        </p>
+      )}
+
+      {!isLoading && !error && rangerteMoedre.length > 0 && (
+        <div className={styles.tabellWrapperSentrert}>
+          <Table
+            className={styles.tabellAuto}
+            verticalSpacing="0.5rem"
+            withTableBorder
+            withColumnBorders
+            highlightOnHover
+          >
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>#</Table.Th>
+                <Table.Th>Søye</Table.Th>
+                {aktiveParametre.map((param) => (
+                  <Table.Th key={param}>{bestSoyeParamLabel[param]}</Table.Th>
+                ))}
+                {aktiveParametre.length > 1 && <Table.Th>Poengsum</Table.Th>}
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
+              {rangerteMoedre.map((rad, index) => (
+                <Table.Tr key={rad.mor.id}>
+                  <Table.Td>{index + 1}</Table.Td>
+                  <Table.Td>
+                    {rad.mor.navn}
+                    {rad.mor.oereNr && (
+                      <span className={styles.oereNr}> ({rad.mor.oereNr})</span>
+                    )}
+                  </Table.Td>
+                  {aktiveParametre.map((param) => {
+                    const stat = rad[param]
+                    return (
+                      <Table.Td key={param}>
+                        {stat.snitt == null ? (
+                          '–'
+                        ) : (
+                          <div className={styles.paramCelle}>
+                            <span className={styles.paramVerdi}>
+                              {formatterBestSoyeParamverdi(stat.snitt)}
+                            </span>
+                            <span className={styles.paramUndertekst}>
+                              {bestSoyeAntallLabel[param](stat.antall)}
+                            </span>
+                          </div>
+                        )}
+                      </Table.Td>
+                    )
+                  })}
+                  {aktiveParametre.length > 1 && (
+                    <Table.Td>{rad.poengsum.toFixed(0)}</Table.Td>
+                  )}
+                </Table.Tr>
+              ))}
+            </Table.Tbody>
+          </Table>
+        </div>
+      )}
+
+      <div className={styles.smalInnhold}>
+        <div className={styles.forklaring}>
+          <Text size="sm" fw={600} mb="0.5rem">
+            Hvordan regnes "beste søye" ut?
+          </Text>
+          <List size="sm" c="dimmed" spacing="0.25rem">
+            <List.Item>
+              Lamming-poengsummen hentes fra samme beregning som på Lamming-siden (lam pr
+              år, fødsels- og høstvekt – både snitt og totalt – og andel dødd av sykdom),
+              men alltid med alle disse parametrene slått på, uavhengig av hva som er valgt
+              på Lamming-siden.
+            </List.Item>
+            <List.Item>
+              Slakting-poengsummen hentes på samme måte fra beregningen på Slakting-siden
+              (slaktekategori, slaktpris, og slaktevekt snitt og totalt), også alltid med
+              alle parametrene slått på der.
+            </List.Item>
+            <List.Item>
+              De to poengsummene (0–100) normaliseres på nytt mot hverandre, hver for seg,
+              til en skala fra 0 til 1 ut fra laveste og høyeste poengsum blant alle søyer –
+              akkurat som på de to andre sidene.
+            </List.Item>
+            <List.Item>
+              Den endelige poengsummen (0–100) her er gjennomsnittet av de normaliserte
+              verdiene for de avhukede parametrene (Lamming og/eller Slakting). Søyene
+              rangeres fra høyest til lavest poengsum, altså fra best til verst.
+            </List.Item>
+            <List.Item>
+              Kun søyer med en beregnet poengsum for minst én av de valgte parametrene vises
+              i tabellen.
+            </List.Item>
+          </List>
+        </div>
+      </div>
+    </section>
+  )
+}
+
 function SlektstreSeksjon() {
   return (
     <section className={styles.section}>
@@ -792,6 +1009,7 @@ function StatistikkPage() {
         <Tabs.List mb="1.5rem">
           <Tabs.Tab value="lamming">Lamming</Tabs.Tab>
           <Tabs.Tab value="slakting">Slakting</Tabs.Tab>
+          <Tabs.Tab value="beste-soye">Beste søye</Tabs.Tab>
           <Tabs.Tab value="slektstre">Slektstre</Tabs.Tab>
         </Tabs.List>
 
@@ -800,6 +1018,9 @@ function StatistikkPage() {
         </Tabs.Panel>
         <Tabs.Panel value="slakting">
           <SlaktingSeksjon />
+        </Tabs.Panel>
+        <Tabs.Panel value="beste-soye">
+          <BestSoyeSeksjon />
         </Tabs.Panel>
         <Tabs.Panel value="slektstre">
           <SlektstreSeksjon />
