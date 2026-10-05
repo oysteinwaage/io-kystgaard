@@ -15,6 +15,7 @@ import { useVaer } from '@/hooks/useVaer'
 import { europKodeForTallverdi, europSnittverdi } from '@/lib/europ'
 import type { SauDoedsAarsak, SauMedId } from '@/types/sau'
 import type { VaerMedId } from '@/types/vaer'
+import { SlektstreSeksjon } from './Slektstre'
 import styles from './StatistikkPage.module.scss'
 
 /** Felles minimumsform for den "forelderen" (søye eller vær) statistikken grupperes på. */
@@ -1115,17 +1116,6 @@ function BestSoyeSeksjon() {
           </List>
         </div>
       </div>
-    </section>
-  )
-}
-
-function SlektstreSeksjon() {
-  return (
-    <section className={styles.section}>
-      <h2 className={styles.sectionTitle}>Slektstre</h2>
-      <Text size="sm" c="dimmed">
-        Visning av slektstre kommer her.
-      </Text>
     </section>
   )
 }
