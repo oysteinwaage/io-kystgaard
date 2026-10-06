@@ -659,7 +659,7 @@ function SauRad({
             )}
             <NumberInput
               className={styles.laastFelt}
-              label="Fødselsvekt"
+              label="Sommervekt"
               placeholder="0"
               suffix=" kg"
               allowNegative={false}
@@ -972,7 +972,7 @@ function LeggTilSauModal({
           onChange={(verdi) => setSkjema((s) => ({ ...s, prosentVillsau: verdi }))}
         />
         <NumberInput
-          label="Fødselsvekt"
+          label="Sommervekt"
           placeholder="0"
           suffix=" kg"
           allowNegative={false}

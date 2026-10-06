@@ -285,8 +285,8 @@ const lamParametre: LamParam[] = [
 
 const lamParamLabel: Record<LamParam, string> = {
   lamPerAar: 'Lam pr år i snitt',
-  foedselsvekt: 'Fødselsvekt',
-  foedselsvektTotal: 'Totalvekt (fødsel)',
+  foedselsvekt: 'Sommervekt',
+  foedselsvektTotal: 'Totalvekt (sommer)',
   hoestvekt: 'Høstvekt',
   hoestvektTotal: 'Totalvekt (høst)',
   sykdomProsent: 'Dødd av sykdom',
@@ -564,15 +564,15 @@ function LamPrSoyeTabell({
           </Text>
           <List size="sm" c="dimmed" spacing="0.25rem">
             <List.Item>
-              For lam pr år, fødselsvekt, høstvekt og dødd av sykdom beregnes et snitt per{' '}
+              For lam pr år, sommervekt, høstvekt og dødd av sykdom beregnes et snitt per{' '}
               {forelderEntall}, basert på lammene {forelderPossessiv} som har en registrert
               verdi for den parameteren: lam pr år er antall lam delt på antall år{' '}
-              {forelderSubjekt} faktisk har hatt lam, fødselsvekt og høstvekt er snittvekt i
+              {forelderSubjekt} faktisk har hatt lam, sommervekt og høstvekt er snittvekt i
               kg, og dødd av sykdom er hvor stor andel av alle lammene {forelderPossessiv}{' '}
               som har dødd av sykdom.
             </List.Item>
             <List.Item>
-              For totalvekt (fødsel) og totalvekt (høst) summeres i stedet vektene til alle
+              For totalvekt (sommer) og totalvekt (høst) summeres i stedet vektene til alle
               lammene {forelderPossessiv}, siden det sier noe om samlet produksjon og ikke
               bare gjennomsnittlig vekt pr lam.
             </List.Item>
@@ -1089,7 +1089,7 @@ function BestSoyeSeksjon() {
             </List.Item>
             <List.Item>
               Lamming-poengsummen hentes fra samme beregning som på Lamming-siden (lam pr
-              år, fødsels- og høstvekt – både snitt og totalt – og andel dødd av sykdom),
+              år, sommer- og høstvekt – både snitt og totalt – og andel dødd av sykdom),
               men alltid med alle disse parametrene slått på, uavhengig av hva som er valgt
               på Lamming-siden.
             </List.Item>

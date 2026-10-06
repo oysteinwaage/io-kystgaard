@@ -12,7 +12,7 @@ export interface Sau {
   foedselsdato?: string
   farge?: string
   vekt?: number
-  /** Fødselsvekt i kg */
+  /** Sommervekt i kg */
   foedselsvekt?: number
   /** Høstvekt i kg */
   hoestvekt?: number
