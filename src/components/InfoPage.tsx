@@ -21,13 +21,14 @@ import {
   finnParringsVaerer,
   kanImporteres,
   type LammingDokument,
+  type LammingEndring,
   type LammingRad,
   parseLammingDocx,
 } from '@/lib/lammingImport'
 import { appRef, storage } from '@/lib/firebase'
 import type { SlaktOppgjorFunn } from '@/lib/slaktOppgjor'
 import type { ParringMedId } from '@/types/parring'
-import type { SauMedId } from '@/types/sau'
+import type { Sau, SauMedId } from '@/types/sau'
 import type { VaerMedId } from '@/types/vaer'
 import styles from './InfoPage.module.scss'
 
@@ -184,6 +185,69 @@ function visDato(maanedDag: string | undefined) {
   return `${dag}.${maaned}`
 }
 
+const feltNavn: Partial<Record<keyof Sau, string>> = {
+  oereNr: 'Ørenr',
+  navn: 'Navn',
+  foedselsdato: 'Fødselsdato',
+  kjoenn: 'Kjønn',
+  barnAv: 'Mor',
+  farAv: 'Far',
+  prosentVillsau: 'Andel villsau',
+  foedselsvekt: 'Sommervekt',
+  hoestvekt: 'Høstvekt',
+  fellerEgenUll: 'Feller egen ull',
+  kommentar: 'Kommentar',
+}
+
+function visFeltverdi(
+  felt: keyof Sau,
+  verdi: Sau[keyof Sau],
+  alleSauer: SauMedId[],
+  alleVaerer: VaerMedId[],
+) {
+  if (verdi == null || verdi === '') return 'tomt'
+  switch (felt) {
+    case 'foedselsdato':
+      return visDato(verdi as string)
+    case 'kjoenn':
+      return verdi === 'HANN' ? 'Vær' : 'Søye'
+    case 'barnAv': {
+      const mor = alleSauer.find((s) => s.id === verdi)
+      return mor ? visSau(mor) : 'ukjent sau'
+    }
+    case 'farAv': {
+      const far = alleVaerer.find((v) => v.id === verdi)
+      return far ? visSau(far) : 'ukjent vær'
+    }
+    case 'prosentVillsau':
+      return `${verdi} %`
+    case 'foedselsvekt':
+    case 'hoestvekt':
+      return `${verdi} kg`
+    case 'fellerEgenUll':
+      return verdi ? 'Ja' : 'Nei'
+    default:
+      return `«${verdi}»`
+  }
+}
+
+function beskrivEndring(endring: LammingEndring, alleSauer: SauMedId[], alleVaerer: VaerMedId[]) {
+  const navn = feltNavn[endring.felt] ?? endring.felt
+  return `${navn}: ${visFeltverdi(endring.felt, endring.fra, alleSauer, alleVaerer)} → ${visFeltverdi(endring.felt, endring.til, alleSauer, alleVaerer)}`
+}
+
+function lagringsmelding(nye: number, oppdaterte: number) {
+  if (nye > 0 && oppdaterte > 0) return `Opprettet ${nye} nye lam og oppdaterte ${oppdaterte} eksisterende.`
+  if (oppdaterte > 0) return `Oppdaterte ${oppdaterte} eksisterende lam.`
+  return `Opprettet ${nye} nye lam.`
+}
+
+function knappetekst(nye: number, oppdateres: number) {
+  if (nye > 0 && oppdateres > 0) return `Lagre ${nye} nye og oppdater ${oppdateres}`
+  if (oppdateres > 0) return `Oppdater ${oppdateres} lam`
+  return `Lagre ${nye} lam`
+}
+
 function LammingStatus({ rad }: { rad: LammingRad }) {
   if (rad.feil.length > 0) {
     return (
@@ -192,10 +256,14 @@ function LammingStatus({ rad }: { rad: LammingRad }) {
       </Badge>
     )
   }
-  if (rad.finnesAllerede) {
-    return (
+  if (rad.eksisterende) {
+    return rad.endringer.length > 0 ? (
+      <Badge color="blue" variant="light">
+        Oppdateres
+      </Badge>
+    ) : (
       <Badge color="gray" variant="light">
-        Finnes allerede
+        Ingen endringer
       </Badge>
     )
   }
@@ -227,7 +295,7 @@ function LammingImportSeksjon({
   const [laster, setLaster] = useState(false)
   const [feilmelding, setFeilmelding] = useState<string | null>(null)
   const [lagrer, setLagrer] = useState(false)
-  const [antallLagret, setAntallLagret] = useState<number | null>(null)
+  const [lagret, setLagret] = useState<{ nye: number; oppdaterte: number } | null>(null)
 
   const gyldigAar = typeof aar === 'number' ? aar : null
   const rader = useMemo(
@@ -240,10 +308,13 @@ function LammingImportSeksjon({
     [gyldigAar, parringer, alleVaerer],
   )
   const klare = rader?.filter(kanImporteres) ?? []
-  const merknader = rader?.filter((r) => r.feil.length > 0 || r.advarsler.length > 0 || r.finnesAllerede) ?? []
+  const antallNye = klare.filter((r) => !r.eksisterende).length
+  const antallOppdateres = klare.length - antallNye
+  const merknader =
+    rader?.filter((r) => r.feil.length > 0 || r.advarsler.length > 0 || r.eksisterende) ?? []
 
   function velgFil(fil: File | null) {
-    setAntallLagret(null)
+    setLagret(null)
     setFeilmelding(null)
     setDokument(null)
     if (!fil) return
@@ -277,10 +348,18 @@ function LammingImportSeksjon({
     setLagrer(true)
     const oppdateringer: Record<string, unknown> = {}
     klare.forEach((rad) => {
-      oppdateringer[`sauer/${push(appRef('sauer')).key}`] = rad.sau
+      if (rad.eksisterende) {
+        // Oppdaterer kun feltene som er endret – øvrige felter på sauen beholdes
+        rad.endringer.forEach((endring) => {
+          oppdateringer[`sauer/${rad.eksisterende!.id}/${endring.felt}`] = endring.til
+        })
+      } else {
+        oppdateringer[`sauer/${push(appRef('sauer')).key}`] = rad.sau
+      }
     })
+    const resultat = { nye: antallNye, oppdaterte: antallOppdateres }
     update(appRef(), oppdateringer)
-      .then(() => setAntallLagret(klare.length))
+      .then(() => setLagret(resultat))
       .catch((err) => {
         console.error('Kunne ikke lagre lam:', err)
         setFeilmelding('Kunne ikke lagre til databasen. Se konsollen for detaljer.')
@@ -289,10 +368,11 @@ function LammingImportSeksjon({
   }
 
   return (
-    <section className={styles.section}>
+    <section className={styles.importModul}>
       <h2 className={styles.sectionTitle}>Importer lam fra lammingsskjema</h2>
       <Text size="sm" c="dimmed" mb="0.75rem">
-        Last opp et utfylt «Lamming 20xx»-skjema (Word, .docx) for å opprette nye sauer. Mor
+        Last opp et utfylt «Lamming 20xx»-skjema (Word, .docx) for å opprette nye sauer. Finnes det
+        allerede en sau med samme ørenr og fødselsår, oppdateres den i stedet. Mor
         matches mot eksisterende sauer på ørenr og navn. Fødselsår hentes fra overskriften, og
         far er væren fra parringen der lammene fødes det året. Du
         ser alle lammene før noe lagres.
@@ -345,7 +425,8 @@ function LammingImportSeksjon({
           )}
 
           <Text size="sm" mt="0.5rem" mb="0.5rem">
-            {klare.length} av {rader.length} lam er klare til å lagres.
+            {antallNye} nye lam opprettes og {antallOppdateres} eksisterende oppdateres (av{' '}
+            {rader.length} rader).
           </Text>
 
           <div style={{ overflowX: 'auto' }}>
@@ -420,34 +501,46 @@ function LammingImportSeksjon({
           {merknader.length > 0 && (
             <div className={styles.merknader}>
               {merknader.map((rad) => (
-                <Text key={rad.radNr} size="sm" mt="0.25rem">
-                  <Text span fw={600}>
-                    {rad.sau.oereNr ?? `Rad ${rad.radNr}`}:
-                  </Text>{' '}
-                  {rad.finnesAllerede && (
-                    <Text span c="dimmed">
-                      Finnes allerede som {visSau(rad.finnesAllerede)} født {gyldigAar} – hoppes
-                      over.{' '}
+                <div key={rad.radNr} className={styles.merknad}>
+                  <Text size="sm" fw={600}>
+                    {rad.sau.oereNr ?? `Rad ${rad.radNr}`}
+                    {rad.eksisterende &&
+                      ` – finnes allerede som ${visSau(rad.eksisterende)} født ${gyldigAar}`}
+                  </Text>
+                  {rad.eksisterende && rad.endringer.length === 0 && rad.feil.length === 0 && (
+                    <Text size="sm" c="dimmed">
+                      Ingen endringer – hoppes over.
                     </Text>
                   )}
+                  {rad.eksisterende && rad.endringer.length > 0 && (
+                    <ul className={styles.endringsliste}>
+                      {rad.endringer.map((endring) => (
+                        <li key={endring.felt}>
+                          <Text size="sm" c="blue">
+                            {beskrivEndring(endring, alleSauer, alleVaerer)}
+                          </Text>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                   {rad.feil.map((f) => (
-                    <Text key={f} span c="red">
-                      {f}{' '}
+                    <Text key={f} size="sm" c="red">
+                      {f}
                     </Text>
                   ))}
                   {rad.advarsler.map((a) => (
-                    <Text key={a} span c="orange">
-                      {a}{' '}
+                    <Text key={a} size="sm" c="orange">
+                      {a}
                     </Text>
                   ))}
-                </Text>
+                </div>
               ))}
             </div>
           )}
 
-          {antallLagret != null ? (
+          {lagret ? (
             <Text size="sm" c="green" mt="1rem">
-              Lagret {antallLagret} nye lam.
+              {lagringsmelding(lagret.nye, lagret.oppdaterte)}
             </Text>
           ) : (
             <Group justify="flex-end" mt="1rem">
@@ -456,7 +549,7 @@ function LammingImportSeksjon({
                 disabled={klare.length === 0 || gyldigAar == null}
                 onClick={importer}
               >
-                Lagre {klare.length} lam
+                {knappetekst(antallNye, antallOppdateres)}
               </Button>
             </Group>
           )}
@@ -540,7 +633,7 @@ function SlaktOppgjorImportSeksjon({ alleSauer }: { alleSauer: SauMedId[] }) {
   }
 
   return (
-    <section className={styles.section}>
+    <section className={styles.importModul}>
       <h2 className={styles.sectionTitle}>Importer slakt-informasjon fra dokument fra Flatland</h2>
       <Text size="sm" c="dimmed" mb="0.75rem">
         Last opp en slakteoppgjørsseddel (PDF) for å hente ut slaktevekt, slaktpris og

@@ -197,14 +197,32 @@ export interface LammingRad {
   morTekst: string
   farTekst: string
   villsauBeregnet: boolean
-  /** Sau med samme ørenr og fødselsår som allerede finnes */
-  finnesAllerede: SauMedId | null
+  /** Sau med samme ørenr og fødselsår som allerede finnes – oppdateres i stedet for å opprettes */
+  eksisterende: SauMedId | null
+  /** Felter som endres på den eksisterende sauen (tom for nye sauer) */
+  endringer: LammingEndring[]
   feil: string[]
   advarsler: string[]
 }
 
+export interface LammingEndring {
+  felt: keyof Sau
+  fra: Sau[keyof Sau]
+  til: Sau[keyof Sau]
+}
+
 export function kanImporteres(rad: LammingRad) {
-  return rad.feil.length === 0 && !rad.finnesAllerede
+  return rad.feil.length === 0 && (!rad.eksisterende || rad.endringer.length > 0)
+}
+
+/**
+ * Felter fra dokumentet som avviker fra den eksisterende sauen. Tomme celler i
+ * dokumentet (felt som ikke er satt på `sau`) endrer aldri eksisterende verdier.
+ */
+function finnEndringer(sau: Sau, eksisterende: SauMedId): LammingEndring[] {
+  return (Object.keys(sau) as (keyof Sau)[])
+    .filter((felt) => sau[felt] !== eksisterende[felt])
+    .map((felt) => ({ felt, fra: eksisterende[felt], til: sau[felt] }))
 }
 
 function likTekst(a: string | undefined, b: string | undefined) {
@@ -324,13 +342,19 @@ export function byggLammingRader(
     if (oereNr) sau.oereNr = oereNr
     else feil.push('Mangler ørenr.')
 
+    const eksisterende =
+      (oereNr &&
+        aar != null &&
+        alleSauer.find((s) => likTekst(s.oereNr, oereNr) && s.foedselsaar === aar)) ||
+      null
+
     if (raa.navn) sau.navn = raa.navn.trim()
 
     if (raa.kjoenn) {
       const kjoenn = tolkKjoenn(raa.kjoenn)
       if (kjoenn) sau.kjoenn = kjoenn
       else feil.push(`Ukjent kjønn «${raa.kjoenn}» (bruk V eller S).`)
-    } else {
+    } else if (!eksisterende) {
       feil.push('Mangler kjønn.')
     }
 
@@ -375,13 +399,6 @@ export function byggLammingRader(
 
     if (raa.kommentar) sau.kommentar = raa.kommentar.trim()
 
-    const finnesAllerede =
-      (oereNr &&
-        alleSauer.find(
-          (s) => likTekst(s.oereNr, oereNr) && aar != null && s.foedselsaar === aar,
-        )) ||
-      null
-
     if (oereNr) {
       const noekkel = oereNr.toLowerCase()
       if (sett.has(noekkel)) feil.push(`Ørenr ${oereNr} står flere ganger i dokumentet.`)
@@ -396,7 +413,8 @@ export function byggLammingRader(
       morTekst: [raa.morOereNr, raa.morNavn].filter(Boolean).join(' / '),
       farTekst: raa.far ?? '',
       villsauBeregnet,
-      finnesAllerede,
+      eksisterende,
+      endringer: eksisterende ? finnEndringer(sau, eksisterende) : [],
       feil,
       advarsler,
     }

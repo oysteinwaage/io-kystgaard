@@ -35,3 +35,32 @@
 .merknader {
   margin-top: 0.75rem;
 }
+
+.importModul {
+  margin-bottom: 1.5rem;
+  padding: 1.25rem 1.5rem 1.5rem;
+  border: 1px solid var(--mantine-color-default-border);
+  border-left: 4px solid var(--mantine-primary-color-filled);
+  border-radius: var(--mantine-radius-md);
+  background: var(--mantine-color-body);
+  box-shadow: var(--mantine-shadow-xs);
+
+  .sectionTitle {
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--mantine-color-default-border);
+  }
+}
+
+.merknad {
+  padding: 0.4rem 0;
+  border-bottom: 1px dashed var(--mantine-color-default-border);
+
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+.endringsliste {
+  margin: 0.15rem 0 0;
+  padding-left: 1.25rem;
+}
