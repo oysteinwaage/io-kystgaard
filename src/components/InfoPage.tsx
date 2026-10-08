@@ -1,9 +1,10 @@
 import { useState, type ReactNode } from 'react'
 import { update } from 'firebase/database'
+import { getDownloadURL, ref as storageRef } from 'firebase/storage'
 import { Accordion, Badge, Button, FileInput, Group, Table, Tabs, Text } from '@mantine/core'
 import { useSauer } from '@/hooks/useSauer'
 import { europKategorier } from '@/lib/europ'
-import { appRef } from '@/lib/firebase'
+import { appRef, storage } from '@/lib/firebase'
 import type { SlaktOppgjorFunn } from '@/lib/slaktOppgjor'
 import type { SauMedId } from '@/types/sau'
 import styles from './InfoPage.module.scss'
@@ -78,14 +79,75 @@ function InfoOgHjelpSeksjon() {
   )
 }
 
+interface Dokumentmal {
+  id: string
+  tittel: string
+  beskrivelse: string
+  /** Sti i Firebase Storage */
+  sti: string
+}
+
+const dokumentmaler: Dokumentmal[] = [
+  {
+    id: 'lamming',
+    tittel: 'Lamming 20xx',
+    beskrivelse:
+      'Skjema for å registrere nye lam under lamming: ørenr, navn, fødselsdato, kjønn, mor, far, andel villsau, vekter, ull og kommentar.',
+    sti: 'lynghaugenGard/Lamming 20xx.docx',
+  },
+]
+
+async function lastNedFraStorage(mal: Dokumentmal) {
+  // Navigerer til nedlastingslenken i stedet for å hente filen med getBlob, som krever
+  // CORS-oppsett på bucketen. Firebase sender Content-Disposition med filnavnet.
+  window.location.href = await getDownloadURL(storageRef(storage, mal.sti))
+}
+
+function DokumentmalRad({ mal }: { mal: Dokumentmal }) {
+  const [laster, setLaster] = useState(false)
+  const [feil, setFeil] = useState(false)
+
+  function lastNed() {
+    setLaster(true)
+    setFeil(false)
+    lastNedFraStorage(mal)
+      .catch((err) => {
+        console.error(`Kunne ikke laste ned ${mal.sti}:`, err)
+        setFeil(true)
+      })
+      .finally(() => setLaster(false))
+  }
+
+  return (
+    <Group justify="space-between" wrap="nowrap" gap="1rem" className={styles.malRad}>
+      <div>
+        <Text fw={600}>{mal.tittel}</Text>
+        <Text size="sm" c="dimmed">
+          {mal.beskrivelse}
+        </Text>
+        {feil && (
+          <Text size="sm" c="red" mt="0.25rem">
+            Kunne ikke laste ned dokumentet. Se konsollen for detaljer.
+          </Text>
+        )}
+      </div>
+      <Button variant="light" loading={laster} onClick={lastNed} className={styles.lastNedKnapp}>
+        Last ned
+      </Button>
+    </Group>
+  )
+}
+
 function DokumentmalerSeksjon() {
   return (
     <section className={styles.section}>
       <h2 className={styles.sectionTitle}>Dokumentmaler</h2>
-      <Text size="sm" c="dimmed">
-        Her vil du kunne laste ned maler for manuell utfylling. Ingen maler er lagt inn
-        ennå.
+      <Text size="sm" c="dimmed" mb="0.75rem">
+        Maler for manuell utfylling.
       </Text>
+      {dokumentmaler.map((mal) => (
+        <DokumentmalRad key={mal.id} mal={mal} />
+      ))}
     </section>
   )
 }
@@ -289,19 +351,19 @@ function InfoPage() {
     <main className={styles.page}>
       <h1 className={styles.title}>Info og dokumenter</h1>
 
-      <Tabs defaultValue="info" keepMounted={false}>
+      <Tabs defaultValue="maler" keepMounted={false}>
         <Tabs.List mb="1.5rem">
-          <Tabs.Tab value="info">Info og hjelp</Tabs.Tab>
           <Tabs.Tab value="maler">Dokumentmaler</Tabs.Tab>
+          <Tabs.Tab value="info">Info og hjelp</Tabs.Tab>
           <Tabs.Tab value="opplasting">Last opp dokumenter</Tabs.Tab>
         </Tabs.List>
 
-        <Tabs.Panel value="info">
-          <InfoOgHjelpSeksjon />
-        </Tabs.Panel>
-
         <Tabs.Panel value="maler">
           <DokumentmalerSeksjon />
+        </Tabs.Panel>
+
+        <Tabs.Panel value="info">
+          <InfoOgHjelpSeksjon />
         </Tabs.Panel>
 
         <Tabs.Panel value="opplasting">
