@@ -1,12 +1,34 @@
-import { useState, type ReactNode } from 'react'
-import { update } from 'firebase/database'
+import { useMemo, useState, type ReactNode } from 'react'
+import { push, update } from 'firebase/database'
 import { getDownloadURL, ref as storageRef } from 'firebase/storage'
-import { Accordion, Badge, Button, FileInput, Group, Table, Tabs, Text } from '@mantine/core'
+import {
+  Accordion,
+  Badge,
+  Button,
+  FileInput,
+  Group,
+  NumberInput,
+  Table,
+  Tabs,
+  Text,
+} from '@mantine/core'
+import { useParring } from '@/hooks/useParring'
 import { useSauer } from '@/hooks/useSauer'
+import { useVaer } from '@/hooks/useVaer'
 import { europKategorier } from '@/lib/europ'
+import {
+  byggLammingRader,
+  finnParringsVaerer,
+  kanImporteres,
+  type LammingDokument,
+  type LammingRad,
+  parseLammingDocx,
+} from '@/lib/lammingImport'
 import { appRef, storage } from '@/lib/firebase'
 import type { SlaktOppgjorFunn } from '@/lib/slaktOppgjor'
+import type { ParringMedId } from '@/types/parring'
 import type { SauMedId } from '@/types/sau'
+import type { VaerMedId } from '@/types/vaer'
 import styles from './InfoPage.module.scss'
 
 const europKategorierBestTilDaarligst = [...europKategorier].reverse()
@@ -148,6 +170,298 @@ function DokumentmalerSeksjon() {
       {dokumentmaler.map((mal) => (
         <DokumentmalRad key={mal.id} mal={mal} />
       ))}
+    </section>
+  )
+}
+
+function visSau(sau: SauMedId | VaerMedId) {
+  return sau.oereNr ? `${sau.navn ?? 'Uten navn'} (${sau.oereNr})` : (sau.navn ?? '–')
+}
+
+function visDato(maanedDag: string | undefined) {
+  if (!maanedDag) return '–'
+  const [maaned, dag] = maanedDag.split('-')
+  return `${dag}.${maaned}`
+}
+
+function LammingStatus({ rad }: { rad: LammingRad }) {
+  if (rad.feil.length > 0) {
+    return (
+      <Badge color="red" variant="light">
+        Feil
+      </Badge>
+    )
+  }
+  if (rad.finnesAllerede) {
+    return (
+      <Badge color="gray" variant="light">
+        Finnes allerede
+      </Badge>
+    )
+  }
+  if (rad.advarsler.length > 0) {
+    return (
+      <Badge color="orange" variant="light">
+        Klar, med merknad
+      </Badge>
+    )
+  }
+  return (
+    <Badge color="green" variant="light">
+      Klar
+    </Badge>
+  )
+}
+
+function LammingImportSeksjon({
+  alleSauer,
+  alleVaerer,
+  parringer,
+}: {
+  alleSauer: SauMedId[]
+  alleVaerer: VaerMedId[]
+  parringer: ParringMedId[]
+}) {
+  const [dokument, setDokument] = useState<LammingDokument | null>(null)
+  const [aar, setAar] = useState<number | string>('')
+  const [laster, setLaster] = useState(false)
+  const [feilmelding, setFeilmelding] = useState<string | null>(null)
+  const [lagrer, setLagrer] = useState(false)
+  const [antallLagret, setAntallLagret] = useState<number | null>(null)
+
+  const gyldigAar = typeof aar === 'number' ? aar : null
+  const rader = useMemo(
+    () =>
+      dokument ? byggLammingRader(dokument, gyldigAar, alleSauer, alleVaerer, parringer) : null,
+    [dokument, gyldigAar, alleSauer, alleVaerer, parringer],
+  )
+  const parringsVaerer = useMemo(
+    () => finnParringsVaerer(gyldigAar, parringer, alleVaerer),
+    [gyldigAar, parringer, alleVaerer],
+  )
+  const klare = rader?.filter(kanImporteres) ?? []
+  const merknader = rader?.filter((r) => r.feil.length > 0 || r.advarsler.length > 0 || r.finnesAllerede) ?? []
+
+  function velgFil(fil: File | null) {
+    setAntallLagret(null)
+    setFeilmelding(null)
+    setDokument(null)
+    if (!fil) return
+
+    if (fil.name.toLowerCase().endsWith('.pages')) {
+      setFeilmelding(
+        'Pages-filer kan ikke leses direkte. Åpne dokumentet i Pages og velg Arkiv → Eksporter til → Word, og last opp .docx-filen.',
+      )
+      return
+    }
+
+    setLaster(true)
+    parseLammingDocx(fil)
+      .then((dok) => {
+        if (dok.rader.length === 0) {
+          setFeilmelding('Fant ingen utfylte rader i tabellen.')
+          return
+        }
+        setDokument(dok)
+        setAar(dok.aar ?? '')
+      })
+      .catch((err) => {
+        console.error('Kunne ikke lese lammingsdokument:', err)
+        setFeilmelding(err instanceof Error ? err.message : 'Kunne ikke lese dokumentet.')
+      })
+      .finally(() => setLaster(false))
+  }
+
+  function importer() {
+    if (klare.length === 0) return
+    setLagrer(true)
+    const oppdateringer: Record<string, unknown> = {}
+    klare.forEach((rad) => {
+      oppdateringer[`sauer/${push(appRef('sauer')).key}`] = rad.sau
+    })
+    update(appRef(), oppdateringer)
+      .then(() => setAntallLagret(klare.length))
+      .catch((err) => {
+        console.error('Kunne ikke lagre lam:', err)
+        setFeilmelding('Kunne ikke lagre til databasen. Se konsollen for detaljer.')
+      })
+      .finally(() => setLagrer(false))
+  }
+
+  return (
+    <section className={styles.section}>
+      <h2 className={styles.sectionTitle}>Importer lam fra lammingsskjema</h2>
+      <Text size="sm" c="dimmed" mb="0.75rem">
+        Last opp et utfylt «Lamming 20xx»-skjema (Word, .docx) for å opprette nye sauer. Mor
+        matches mot eksisterende sauer på ørenr og navn. Fødselsår hentes fra overskriften, og
+        far er væren fra parringen der lammene fødes det året. Du
+        ser alle lammene før noe lagres.
+      </Text>
+
+      <FileInput
+        placeholder="Velg lammingsskjema (.docx)…"
+        accept=".docx,.pages,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        onChange={velgFil}
+        disabled={laster}
+        clearable
+      />
+
+      {laster && (
+        <Text size="sm" c="dimmed" mt="0.75rem">
+          Leser dokumentet…
+        </Text>
+      )}
+
+      {feilmelding && (
+        <Text size="sm" c="red" mt="0.75rem">
+          {feilmelding}
+        </Text>
+      )}
+
+      {rader && (
+        <>
+          <NumberInput
+            label="Fødselsår"
+            description={dokument?.aar ? 'Hentet fra overskriften i dokumentet' : 'Fant ikke årstall i overskriften – fyll inn'}
+            value={aar}
+            onChange={setAar}
+            min={1990}
+            max={2100}
+            allowDecimal={false}
+            hideControls
+            mt="1rem"
+            w="12rem"
+            error={gyldigAar == null ? 'Påkrevd' : undefined}
+          />
+
+          {gyldigAar != null && (
+            <Text size="sm" mt="1rem" c={parringsVaerer.length === 1 ? undefined : 'orange'}>
+              {parringsVaerer.length === 0
+                ? `Fant ingen parring med lam født ${gyldigAar} – lammene lagres uten far.`
+                : parringsVaerer.length === 1
+                  ? `Far: ${visSau(parringsVaerer[0])}, fra parringen med lam født ${gyldigAar}.`
+                  : `Flere værer er parret med lam født ${gyldigAar} (${parringsVaerer.map(visSau).join(', ')}) – far settes bare der Far-kolonnen i dokumentet angir hvilken.`}
+            </Text>
+          )}
+
+          <Text size="sm" mt="0.5rem" mb="0.5rem">
+            {klare.length} av {rader.length} lam er klare til å lagres.
+          </Text>
+
+          <div style={{ overflowX: 'auto' }}>
+            <Table verticalSpacing="xs" striped>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Ørenr</Table.Th>
+                  <Table.Th>Navn</Table.Th>
+                  <Table.Th>Født</Table.Th>
+                  <Table.Th>Kjønn</Table.Th>
+                  <Table.Th>Mor</Table.Th>
+                  <Table.Th>Far</Table.Th>
+                  <Table.Th>Villsau</Table.Th>
+                  <Table.Th>Sommervekt</Table.Th>
+                  <Table.Th>Høstvekt</Table.Th>
+                  <Table.Th>Egen ull</Table.Th>
+                  <Table.Th>Kommentar</Table.Th>
+                  <Table.Th>Status</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {rader.map((rad) => (
+                  <Table.Tr key={rad.radNr}>
+                    <Table.Td>{rad.sau.oereNr ?? '–'}</Table.Td>
+                    <Table.Td>{rad.sau.navn ?? '–'}</Table.Td>
+                    <Table.Td>{visDato(rad.sau.foedselsdato)}</Table.Td>
+                    <Table.Td>
+                      {rad.sau.kjoenn === 'HANN' ? 'Vær' : rad.sau.kjoenn === 'HUNN' ? 'Søye' : '–'}
+                    </Table.Td>
+                    <Table.Td>
+                      {rad.mor ? (
+                        visSau(rad.mor)
+                      ) : rad.morTekst ? (
+                        <Text span size="sm" c="orange">
+                          {rad.morTekst}
+                        </Text>
+                      ) : (
+                        '–'
+                      )}
+                    </Table.Td>
+                    <Table.Td>
+                      {rad.far ? (
+                        visSau(rad.far)
+                      ) : rad.farTekst ? (
+                        <Text span size="sm" c="orange">
+                          {rad.farTekst}
+                        </Text>
+                      ) : (
+                        '–'
+                      )}
+                    </Table.Td>
+                    <Table.Td>
+                      {rad.sau.prosentVillsau != null
+                        ? `${rad.sau.prosentVillsau} %${rad.villsauBeregnet ? ' (beregnet)' : ''}`
+                        : '–'}
+                    </Table.Td>
+                    <Table.Td>{rad.sau.foedselsvekt != null ? `${rad.sau.foedselsvekt} kg` : '–'}</Table.Td>
+                    <Table.Td>{rad.sau.hoestvekt != null ? `${rad.sau.hoestvekt} kg` : '–'}</Table.Td>
+                    <Table.Td>
+                      {rad.sau.fellerEgenUll == null ? '–' : rad.sau.fellerEgenUll ? 'Ja' : 'Nei'}
+                    </Table.Td>
+                    <Table.Td>{rad.sau.kommentar ?? '–'}</Table.Td>
+                    <Table.Td>
+                      <LammingStatus rad={rad} />
+                    </Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          </div>
+
+          {merknader.length > 0 && (
+            <div className={styles.merknader}>
+              {merknader.map((rad) => (
+                <Text key={rad.radNr} size="sm" mt="0.25rem">
+                  <Text span fw={600}>
+                    {rad.sau.oereNr ?? `Rad ${rad.radNr}`}:
+                  </Text>{' '}
+                  {rad.finnesAllerede && (
+                    <Text span c="dimmed">
+                      Finnes allerede som {visSau(rad.finnesAllerede)} født {gyldigAar} – hoppes
+                      over.{' '}
+                    </Text>
+                  )}
+                  {rad.feil.map((f) => (
+                    <Text key={f} span c="red">
+                      {f}{' '}
+                    </Text>
+                  ))}
+                  {rad.advarsler.map((a) => (
+                    <Text key={a} span c="orange">
+                      {a}{' '}
+                    </Text>
+                  ))}
+                </Text>
+              ))}
+            </div>
+          )}
+
+          {antallLagret != null ? (
+            <Text size="sm" c="green" mt="1rem">
+              Lagret {antallLagret} nye lam.
+            </Text>
+          ) : (
+            <Group justify="flex-end" mt="1rem">
+              <Button
+                loading={lagrer}
+                disabled={klare.length === 0 || gyldigAar == null}
+                onClick={importer}
+              >
+                Lagre {klare.length} lam
+              </Button>
+            </Group>
+          )}
+        </>
+      )}
     </section>
   )
 }
@@ -346,6 +660,8 @@ function SlaktOppgjorImportSeksjon({ alleSauer }: { alleSauer: SauMedId[] }) {
 
 function InfoPage() {
   const { sauer } = useSauer()
+  const { vaerer } = useVaer()
+  const { parringer } = useParring()
 
   return (
     <main className={styles.page}>
@@ -367,6 +683,7 @@ function InfoPage() {
         </Tabs.Panel>
 
         <Tabs.Panel value="opplasting">
+          <LammingImportSeksjon alleSauer={sauer} alleVaerer={vaerer} parringer={parringer} />
           <SlaktOppgjorImportSeksjon alleSauer={sauer} />
         </Tabs.Panel>
       </Tabs>
