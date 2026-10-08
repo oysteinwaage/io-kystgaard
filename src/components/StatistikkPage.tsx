@@ -273,6 +273,7 @@ type LamParam =
   | 'hoestvekt'
   | 'hoestvektTotal'
   | 'sykdomProsent'
+  | 'fellerEgenUllProsent'
 
 const lamParametre: LamParam[] = [
   'lamPerAar',
@@ -281,6 +282,7 @@ const lamParametre: LamParam[] = [
   'hoestvekt',
   'hoestvektTotal',
   'sykdomProsent',
+  'fellerEgenUllProsent',
 ]
 
 const lamParamLabel: Record<LamParam, string> = {
@@ -290,6 +292,7 @@ const lamParamLabel: Record<LamParam, string> = {
   hoestvekt: 'Høstvekt',
   hoestvektTotal: 'Totalvekt (høst)',
   sykdomProsent: 'Dødd av sykdom',
+  fellerEgenUllProsent: 'Feller egen ull',
 }
 
 /** For disse parametrene er en lavere verdi det beste (f.eks. lavere dødelighet). */
@@ -300,6 +303,7 @@ const lamParamLavestErBest: Record<LamParam, boolean> = {
   hoestvekt: false,
   hoestvektTotal: false,
   sykdomProsent: true,
+  fellerEgenUllProsent: false,
 }
 
 const lamParamAntallLabel: Record<LamParam, (antall: number) => string> = {
@@ -309,6 +313,7 @@ const lamParamAntallLabel: Record<LamParam, (antall: number) => string> = {
   hoestvekt: (antall) => `${antall} lam`,
   hoestvektTotal: (antall) => `${antall} lam`,
   sykdomProsent: (antall) => `${antall} lam totalt`,
+  fellerEgenUllProsent: (antall) => `${antall} lam med registrert ulltype`,
 }
 
 interface LamParamStat {
@@ -324,6 +329,7 @@ interface MorLamStatistikk {
   hoestvekt: LamParamStat
   hoestvektTotal: LamParamStat
   sykdomProsent: LamParamStat
+  fellerEgenUllProsent: LamParamStat
   kjonnsfordeling: { hann: number; hunn: number; ukjent: number }
 }
 
@@ -348,6 +354,8 @@ function beregnMorLamStatistikk(mor: StatistikkForelder, barn: SauMedId[]): MorL
   const medFoedselsvekt = barn.filter((b) => b.foedselsvekt != null)
   const medHoestvekt = barn.filter((b) => b.hoestvekt != null)
   const dodeAvSykdom = barn.filter((b) => b.doedsAarsak === 'sykdom').length
+  const medFellerEgenUll = barn.filter((b) => b.fellerEgenUll != null)
+  const fellerEgenUllAntall = medFellerEgenUll.filter((b) => b.fellerEgenUll === true).length
 
   const foedselsvektVerdier = medFoedselsvekt.map((b) => b.foedselsvekt as number)
   const hoestvektVerdier = medHoestvekt.map((b) => b.hoestvekt as number)
@@ -375,6 +383,13 @@ function beregnMorLamStatistikk(mor: StatistikkForelder, barn: SauMedId[]): MorL
       snitt: barn.length > 0 ? (dodeAvSykdom / barn.length) * 100 : null,
       antall: barn.length,
     },
+    fellerEgenUllProsent: {
+      snitt:
+        medFellerEgenUll.length > 0
+          ? (fellerEgenUllAntall / medFellerEgenUll.length) * 100
+          : null,
+      antall: medFellerEgenUll.length,
+    },
     kjonnsfordeling: {
       hann: barn.filter((b) => b.kjoenn === 'HANN').length,
       hunn: barn.filter((b) => b.kjoenn === 'HUNN').length,
@@ -393,6 +408,7 @@ function formatterLamParamverdi(param: LamParam, snitt: number): string {
     case 'hoestvektTotal':
       return `${snitt.toFixed(1)} kg`
     case 'sykdomProsent':
+    case 'fellerEgenUllProsent':
       return `${snitt.toFixed(0)} %`
   }
 }
@@ -416,6 +432,7 @@ function LamPrSoyeTabell({
     hoestvekt: true,
     hoestvektTotal: true,
     sykdomProsent: true,
+    fellerEgenUllProsent: true,
   })
 
   const erVaer = modus === 'vaer'
@@ -577,10 +594,15 @@ function LamPrSoyeTabell({
               bare gjennomsnittlig vekt pr lam.
             </List.Item>
             <List.Item>
+              Feller egen ull er hvor stor andel av lammene {forelderPossessiv} med
+              registrert ulltype som feller ull selv, altså ikke behøver klipping.
+            </List.Item>
+            <List.Item>
               Verdiene normaliseres deretter hver for seg til en skala fra 0 til 1, ut fra
               laveste og høyeste verdi blant alle {forelderFlertall} – slik at lam pr år,
-              vekt(er) og sykdomsandel kan vektes likt selv om de har helt forskjellige
-              enheter. For dødd av sykdom er det en lavere andel som gir best score.
+              vekt(er), sykdomsandel og ull-andel kan vektes likt selv om de har helt
+              forskjellige enheter. For dødd av sykdom er det en lavere andel som gir best
+              score, mens for feller egen ull er det en høyere andel som gir best score.
             </List.Item>
             <List.Item>
               Poengsummen (0–100) er gjennomsnittet av de normaliserte verdiene for de
@@ -1089,9 +1111,9 @@ function BestSoyeSeksjon() {
             </List.Item>
             <List.Item>
               Lamming-poengsummen hentes fra samme beregning som på Lamming-siden (lam pr
-              år, sommer- og høstvekt – både snitt og totalt – og andel dødd av sykdom),
-              men alltid med alle disse parametrene slått på, uavhengig av hva som er valgt
-              på Lamming-siden.
+              år, sommer- og høstvekt – både snitt og totalt – andel dødd av sykdom, og
+              andel som feller egen ull), men alltid med alle disse parametrene slått på,
+              uavhengig av hva som er valgt på Lamming-siden.
             </List.Item>
             <List.Item>
               Slakting-poengsummen hentes på samme måte fra beregningen på Slakting-siden
