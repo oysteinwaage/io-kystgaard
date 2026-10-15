@@ -1,0 +1,256 @@
+// Felles stiler for innholdet på de offentlige undersidene.
+.hero {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  gap: 2rem;
+  align-items: center;
+  margin-bottom: 3rem;
+
+  @media (max-width: 48rem) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.eyebrow {
+  margin: 0 0 0.5rem;
+  color: var(--pub-accent);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.heroTittel {
+  font-size: clamp(2rem, 5vw, 3rem);
+}
+
+.ingress {
+  margin: 1rem 0 0;
+  color: var(--pub-muted);
+  font-size: 1.125rem;
+  max-width: 36rem;
+}
+
+.seksjon {
+  margin-top: 3rem;
+}
+
+.seksjonTittel {
+  font-size: 1.625rem;
+  margin-bottom: 1rem;
+}
+
+.tekst {
+  color: var(--pub-muted);
+  max-width: 42rem;
+
+  p {
+    margin: 0 0 1rem;
+  }
+}
+
+// Plassholder for bilder som kommer senere
+.bilde {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 4 / 3;
+  border-radius: var(--pub-radius);
+  background: linear-gradient(135deg, #e7dfd0, #d6cab4);
+  color: #8a7d6a;
+  font-size: 3rem;
+  text-align: center;
+  overflow: hidden;
+}
+
+.bildeHonning {
+  background: linear-gradient(135deg, #f6d48a, #d99a2b);
+  color: #8a5a10;
+}
+
+.bildeGress {
+  background: linear-gradient(135deg, #c9d6a8, #7f9459);
+  color: #3f4c2a;
+}
+
+.bildeTekst {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 0.8125rem;
+  text-align: center;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  gap: 1.25rem;
+}
+
+.kort {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--pub-border);
+  border-radius: var(--pub-radius);
+  background: var(--pub-surface);
+  overflow: hidden;
+  color: inherit;
+  text-decoration: none;
+
+  .bilde {
+    border-radius: 0;
+  }
+}
+
+a.kort {
+  transition: transform 0.15s, box-shadow 0.15s;
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgb(43 38 32 / 10%);
+  }
+}
+
+.kortInnhold {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 1rem 1.125rem 1.25rem;
+}
+
+.kortTittel {
+  font-size: 1.1875rem;
+}
+
+.kortMeta {
+  margin: 0;
+  color: var(--pub-muted);
+  font-size: 0.9375rem;
+}
+
+.pris {
+  margin-top: 0.5rem;
+  font-weight: 700;
+  font-size: 1.125rem;
+  color: var(--pub-accent-dark);
+}
+
+.merkelapp {
+  align-self: flex-start;
+  margin-top: 0.5rem;
+  padding: 0.125rem 0.625rem;
+  border-radius: 999px;
+  background: #ece6da;
+  color: var(--pub-muted);
+  font-size: 0.8125rem;
+}
+
+.info {
+  padding: 1.25rem 1.5rem;
+  border-radius: var(--pub-radius);
+  background: var(--pub-surface);
+  border: 1px solid var(--pub-border);
+  border-left: 4px solid var(--pub-accent);
+
+  p {
+    margin: 0.25rem 0 0;
+    color: var(--pub-muted);
+  }
+}
+
+.steg {
+  counter-reset: steg;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 1.25rem;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+
+  li {
+    counter-increment: steg;
+    padding: 1.25rem;
+    border-radius: var(--pub-radius);
+    background: var(--pub-surface);
+    border: 1px solid var(--pub-border);
+
+    &::before {
+      content: counter(steg);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 2rem;
+      height: 2rem;
+      margin-bottom: 0.75rem;
+      border-radius: 50%;
+      background: var(--pub-accent);
+      color: #fff;
+      font-weight: 700;
+    }
+
+    h3 {
+      font-size: 1.125rem;
+      margin-bottom: 0.25rem;
+    }
+
+    p {
+      margin: 0;
+      color: var(--pub-muted);
+    }
+  }
+}
+
+.tabell {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--pub-surface);
+  border-radius: var(--pub-radius);
+  overflow: hidden;
+  border: 1px solid var(--pub-border);
+
+  th,
+  td {
+    padding: 0.75rem 1rem;
+    text-align: left;
+    border-bottom: 1px solid var(--pub-border);
+  }
+
+  th {
+    background: #ece6da;
+    font-weight: 600;
+  }
+
+  tr:last-child td {
+    border-bottom: none;
+  }
+
+  td:last-child,
+  th:last-child {
+    text-align: right;
+    white-space: nowrap;
+  }
+}
+
+.knapp {
+  display: inline-block;
+  margin-top: 1.5rem;
+  padding: 0.75rem 1.5rem;
+  border-radius: 999px;
+  background: var(--pub-accent);
+  color: #fff;
+  border: none;
+  font: inherit;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.15s;
+
+  &:hover {
+    background: var(--pub-accent-dark);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background: var(--pub-accent);
+  }
+}

@@ -2,6 +2,7 @@ import { signOut } from 'firebase/auth'
 import { Burger, Button, Drawer } from '@mantine/core'
 import { useDisclosure } from '@mantine/hooks'
 import { auth } from '@/lib/firebase'
+import { PUBLIC_BASE } from '@/public/sti'
 import styles from './TopMenu.module.scss'
 
 export type View =
@@ -68,6 +69,9 @@ function TopMenu({ activeView, onNavigate, erAdmin }: TopMenuProps) {
             {item.label}
           </button>
         ))}
+        <a href={PUBLIC_BASE} className={`${styles.navItem} ${styles.butikkLenke}`}>
+          Gårdsbutikken ↗
+        </a>
       </nav>
 
       <Button
@@ -107,6 +111,9 @@ function TopMenu({ activeView, onNavigate, erAdmin }: TopMenuProps) {
               {item.label}
             </button>
           ))}
+          <a href={PUBLIC_BASE} className={`${styles.drawerNavItem} ${styles.butikkLenke}`}>
+            Gårdsbutikken ↗
+          </a>
         </nav>
 
         <div className={styles.drawerFooter}>
