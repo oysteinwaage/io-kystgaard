@@ -39,9 +39,6 @@ function ForsidePage({ onNavigate }: ForsidePageProps) {
             Vi er en liten gård ved kysten som driver med sau og birøkt. Her finner du produktene
             våre – laget med omtanke for dyra, naturen og deg som kunde.
           </p>
-          <SideLenke side="lammekjott" onNavigate={onNavigate} className={styles.knapp}>
-            Bestill lammekjøtt
-          </SideLenke>
         </div>
         <div className={`${styles.bilde} ${styles.bildeGress}`}>
           <div>
