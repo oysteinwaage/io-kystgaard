@@ -8,6 +8,7 @@ import {
   FileInput,
   Group,
   NumberInput,
+  Select,
   Table,
   Tabs,
   Text,
@@ -560,39 +561,49 @@ function LammingImportSeksjon({
 }
 
 interface SlaktOppgjorRad extends SlaktOppgjorFunn {
-  sau: SauMedId | null
-  gammelSlaktevekt?: number
-  gammelSlaktPris?: number
-  gammelSlaktKategori?: string
+  /** Alle eksisterende sauer med samme ørenummer */
+  kandidater: SauMedId[]
 }
 
 function byggSlaktOppgjorRader(funn: SlaktOppgjorFunn[], alleSauer: SauMedId[]): SlaktOppgjorRad[] {
-  return funn.map((f) => {
-    const sau = alleSauer.find((s) => s.oereNr?.trim() === f.oereNr.trim()) ?? null
-    return {
-      ...f,
-      sau,
-      gammelSlaktevekt: sau?.slaktevekt,
-      gammelSlaktPris: sau?.slaktPris,
-      gammelSlaktKategori: sau?.slaktKategori,
-    }
-  })
+  return funn.map((f) => ({
+    ...f,
+    kandidater: alleSauer
+      .filter((s) => s.oereNr?.trim() === f.oereNr.trim())
+      .sort((a, b) => (b.foedselsaar ?? 0) - (a.foedselsaar ?? 0)),
+  }))
+}
+
+function beskrivKandidat(sau: SauMedId): string {
+  const deler = [sau.oereNr ?? '']
+  if (sau.navn) deler.push(sau.navn)
+  deler.push(sau.foedselsaar != null ? `f. ${sau.foedselsaar}` : 'ukjent fødselsår')
+  return deler.join(' – ')
 }
 
 function SlaktOppgjorImportSeksjon({ alleSauer }: { alleSauer: SauMedId[] }) {
   const [rader, setRader] = useState<SlaktOppgjorRad[] | null>(null)
+  /** Valgt sau-id per ørenummer, for ørenummer som matcher flere sauer */
+  const [valgtSau, setValgtSau] = useState<Record<string, string>>({})
   const [laster, setLaster] = useState(false)
   const [feilmelding, setFeilmelding] = useState<string | null>(null)
   const [lagrer, setLagrer] = useState(false)
   const [lagret, setLagret] = useState(false)
 
-  const funnet = rader?.filter((r) => r.sau) ?? []
-  const ikkeFunnet = rader?.filter((r) => !r.sau) ?? []
+  function sauForRad(rad: SlaktOppgjorRad): SauMedId | null {
+    if (rad.kandidater.length === 1) return rad.kandidater[0]
+    return rad.kandidater.find((s) => s.id === valgtSau[rad.oereNr]) ?? null
+  }
+
+  const funnet = rader?.filter((r) => sauForRad(r)) ?? []
+  const ikkeFunnet = rader?.filter((r) => r.kandidater.length === 0) ?? []
+  const ikkeValgt = rader?.filter((r) => r.kandidater.length > 1 && !sauForRad(r)) ?? []
 
   function velgFil(fil: File | null) {
     setLagret(false)
     setFeilmelding(null)
     setRader(null)
+    setValgtSau({})
     if (!fil) return
 
     setLaster(true)
@@ -619,9 +630,10 @@ function SlaktOppgjorImportSeksjon({ alleSauer }: { alleSauer: SauMedId[] }) {
     setLagrer(true)
     const oppdateringer: Record<string, unknown> = {}
     funnet.forEach((rad) => {
-      oppdateringer[`sauer/${rad.sau!.id}/slaktevekt`] = rad.slaktevekt
-      oppdateringer[`sauer/${rad.sau!.id}/slaktPris`] = rad.slaktPris
-      oppdateringer[`sauer/${rad.sau!.id}/slaktKategori`] = rad.slaktKategori
+      const sauId = sauForRad(rad)!.id
+      oppdateringer[`sauer/${sauId}/slaktevekt`] = rad.slaktevekt
+      oppdateringer[`sauer/${sauId}/slaktPris`] = rad.slaktPris
+      oppdateringer[`sauer/${sauId}/slaktKategori`] = rad.slaktKategori
     })
     update(appRef(), oppdateringer)
       .then(() => setLagret(true))
@@ -664,7 +676,7 @@ function SlaktOppgjorImportSeksjon({ alleSauer }: { alleSauer: SauMedId[] }) {
       {rader && (
         <>
           <Text size="sm" mt="1rem" mb="0.5rem">
-            {funnet.length} av {rader.length} dyr ble matchet mot en eksisterende sau på
+            {funnet.length} av {rader.length} dyr er matchet mot en eksisterende sau på
             ørenummer.
           </Text>
 
@@ -681,48 +693,81 @@ function SlaktOppgjorImportSeksjon({ alleSauer }: { alleSauer: SauMedId[] }) {
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
-                {rader.map((rad) => (
-                  <Table.Tr key={rad.oereNr}>
-                    <Table.Td>{rad.oereNr}</Table.Td>
-                    <Table.Td>{rad.sau?.navn ? `${rad.sau.navn} (${rad.oereNr})` : '–'}</Table.Td>
-                    <Table.Td>
-                      {rad.gammelSlaktevekt != null && rad.gammelSlaktevekt !== rad.slaktevekt && (
-                        <Text span td="line-through" c="dimmed" mr="0.4rem">
-                          {rad.gammelSlaktevekt} kg
-                        </Text>
-                      )}
-                      {rad.slaktevekt} kg
-                    </Table.Td>
-                    <Table.Td>
-                      {rad.gammelSlaktPris != null && rad.gammelSlaktPris !== rad.slaktPris && (
-                        <Text span td="line-through" c="dimmed" mr="0.4rem">
-                          {rad.gammelSlaktPris.toLocaleString('nb-NO')} kr
-                        </Text>
-                      )}
-                      {rad.slaktPris.toLocaleString('nb-NO')} kr
-                    </Table.Td>
-                    <Table.Td>
-                      {rad.gammelSlaktKategori != null &&
-                        rad.gammelSlaktKategori !== rad.slaktKategori && (
+                {rader.map((rad) => {
+                  const sau = sauForRad(rad)
+                  return (
+                    <Table.Tr key={rad.oereNr}>
+                      <Table.Td>{rad.oereNr}</Table.Td>
+                      <Table.Td>
+                        {rad.kandidater.length > 1 ? (
+                          <Select
+                            size="xs"
+                            placeholder="Velg sau…"
+                            data={rad.kandidater.map((k) => ({
+                              value: k.id,
+                              label: beskrivKandidat(k),
+                            }))}
+                            value={valgtSau[rad.oereNr] ?? null}
+                            onChange={(id) =>
+                              setValgtSau((forrige) => {
+                                const neste = { ...forrige }
+                                if (id) neste[rad.oereNr] = id
+                                else delete neste[rad.oereNr]
+                                return neste
+                              })
+                            }
+                            disabled={lagret}
+                            clearable
+                            miw={220}
+                          />
+                        ) : sau ? (
+                          beskrivKandidat(sau)
+                        ) : (
+                          '–'
+                        )}
+                      </Table.Td>
+                      <Table.Td>
+                        {sau?.slaktevekt != null && sau.slaktevekt !== rad.slaktevekt && (
                           <Text span td="line-through" c="dimmed" mr="0.4rem">
-                            {rad.gammelSlaktKategori}
+                            {sau.slaktevekt} kg
                           </Text>
                         )}
-                      {rad.slaktKategori}
-                    </Table.Td>
-                    <Table.Td>
-                      {rad.sau ? (
-                        <Badge color="green" variant="light">
-                          Funnet
-                        </Badge>
-                      ) : (
-                        <Badge color="red" variant="light">
-                          Ikke funnet
-                        </Badge>
-                      )}
-                    </Table.Td>
-                  </Table.Tr>
-                ))}
+                        {rad.slaktevekt} kg
+                      </Table.Td>
+                      <Table.Td>
+                        {sau?.slaktPris != null && sau.slaktPris !== rad.slaktPris && (
+                          <Text span td="line-through" c="dimmed" mr="0.4rem">
+                            {sau.slaktPris.toLocaleString('nb-NO')} kr
+                          </Text>
+                        )}
+                        {rad.slaktPris.toLocaleString('nb-NO')} kr
+                      </Table.Td>
+                      <Table.Td>
+                        {sau?.slaktKategori != null && sau.slaktKategori !== rad.slaktKategori && (
+                          <Text span td="line-through" c="dimmed" mr="0.4rem">
+                            {sau.slaktKategori}
+                          </Text>
+                        )}
+                        {rad.slaktKategori}
+                      </Table.Td>
+                      <Table.Td>
+                        {sau ? (
+                          <Badge color="green" variant="light">
+                            Funnet
+                          </Badge>
+                        ) : rad.kandidater.length > 1 ? (
+                          <Badge color="orange" variant="light">
+                            {rad.kandidater.length} treff – velg
+                          </Badge>
+                        ) : (
+                          <Badge color="red" variant="light">
+                            Ikke funnet
+                          </Badge>
+                        )}
+                      </Table.Td>
+                    </Table.Tr>
+                  )
+                })}
               </Table.Tbody>
             </Table>
           </div>
@@ -731,6 +776,13 @@ function SlaktOppgjorImportSeksjon({ alleSauer }: { alleSauer: SauMedId[] }) {
             <Text size="sm" c="orange" mt="0.75rem">
               {ikkeFunnet.length} ørenummer ble ikke funnet blant eksisterende sauer og vil bli
               hoppet over (det opprettes ikke nye sauer herfra): {ikkeFunnet.map((r) => r.oereNr).join(', ')}
+            </Text>
+          )}
+
+          {ikkeValgt.length > 0 && (
+            <Text size="sm" c="orange" mt="0.75rem">
+              {ikkeValgt.length} ørenummer matcher flere sauer. Velg hvilken sau det gjelder i
+              tabellen – ellers hoppes de over: {ikkeValgt.map((r) => r.oereNr).join(', ')}
             </Text>
           )}
 
